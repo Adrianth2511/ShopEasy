@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Environment files (NEVER commit secrets)
+.env
+.env.*
+!.env.example
+*/*.env
+*/*.env.*
+!*/*.env.example
+
+# OS files
+.DS_Store
+*/.DS_Store
+
+# Expo & Build artifacts
+.expo/
+*/.expo/
+dist/
+*/dist/
+web-build/
+*/web-build/
+
+# Native folders (generated)
+ios/
+android/
+mobile/ios/
+mobile/android/
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# TypeScript
+*.tsbuildinfo
