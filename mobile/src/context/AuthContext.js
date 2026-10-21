@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api, { setAuthToken } from '../config/api';
+import { identifyUser } from '../services/analytics';
 
 export const AuthContext = createContext();
 
@@ -35,7 +36,9 @@ export const AuthProvider = ({ children }) => {
         // Token is still valid — restore session
         setAuthToken(token);  // Set in-memory immediately
         setUserToken(token);
-        setUserInfo(JSON.parse(userStr));
+        const user = JSON.parse(userStr);
+        setUserInfo(user);
+        identifyUser(user);
       } else {
         // Token rejected — clear it
         await clearStorage();
@@ -55,7 +58,9 @@ export const AuthProvider = ({ children }) => {
           if (token && userStr) {
             setAuthToken(token);  // Set in-memory immediately
             setUserToken(token);
-            setUserInfo(JSON.parse(userStr));
+            const user = JSON.parse(userStr);
+            setUserInfo(user);
+            identifyUser(user);
           }
         } catch (_) {}
       }
@@ -77,6 +82,7 @@ export const AuthProvider = ({ children }) => {
     await AsyncStorage.setItem('userInfo', JSON.stringify(user));
     setUserInfo(user);
     setUserToken(token);
+    identifyUser(user);
   };
 
   const register = async (name, email, password, phone) => {
@@ -87,6 +93,7 @@ export const AuthProvider = ({ children }) => {
     await AsyncStorage.setItem('userInfo', JSON.stringify(user));
     setUserInfo(user);
     setUserToken(token);
+    identifyUser(user);
   };
 
   const logout = async () => {

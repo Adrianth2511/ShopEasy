@@ -5,7 +5,7 @@ import api from '../config/api';
 import { trackCheckoutStarted, trackOrderCompleted } from '../services/analytics';
 
 export default function CheckoutScreen({ route, navigation }) {
-  const { total } = route.params;
+  const { total, items = [] } = route.params;
   const deliveryFee = 10;
   const grandTotal = total + deliveryFee;
 
@@ -34,7 +34,16 @@ export default function CheckoutScreen({ route, navigation }) {
       const res = await api.post('/orders', orderData);
 
       if (res.data.success) {
-        trackOrderCompleted(res.data.order._id, grandTotal);
+        trackOrderCompleted(
+          res.data.order._id,
+          grandTotal,
+          items.map(({ productId, quantity }) => ({
+            title: productId.name,
+            productId: productId._id,
+            price: productId.price,
+            quantity,
+          }))
+        );
         // Navigate to OrderSuccess screen — do NOT use navigation.reset here
         navigation.navigate('OrderSuccess', { orderId: res.data.order._id });
       }

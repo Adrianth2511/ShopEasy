@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../config/api';
-import { trackAddToCart } from '../services/analytics';
+import { trackAddToCart, trackProductViewed } from '../services/analytics';
 import { AuthContext } from '../context/AuthContext';
 
 export default function ProductDetailsScreen({ route, navigation }) {
@@ -23,7 +23,9 @@ export default function ProductDetailsScreen({ route, navigation }) {
   const fetchProduct = async () => {
     try {
       const res = await api.get(`/products/${productId}`);
-      setProduct(res?.data?.product || null);
+      const fetchedProduct = res?.data?.product || null;
+      setProduct(fetchedProduct);
+      trackProductViewed(fetchedProduct);
     } catch (e) {
       console.error('[ProductDetails]', e?.response?.data || e.message);
     } finally {
@@ -39,7 +41,7 @@ export default function ProductDetailsScreen({ route, navigation }) {
     setAddingToCart(true);
     try {
       await api.post('/cart', { productId, quantity });
-      trackAddToCart(productId, product?.name, product?.price);
+      trackAddToCart(product, quantity);
       Alert.alert('Added! 🎉', `${product.name} added to your cart.`, [
         { text: 'Continue Shopping', style: 'cancel' },
         { text: 'View Cart', onPress: () => navigation.navigate('Main', { screen: 'Cart' }) },

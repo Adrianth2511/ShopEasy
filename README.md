@@ -70,7 +70,46 @@ A complete full-stack e-commerce application built with React Native (Expo) and 
    ```
 
 ## Next Steps for CleverTap
-The mobile app contains a `services/analytics.js` file which acts as an abstraction layer for event tracking. When you're ready to integrate CleverTap:
-1. Install the CleverTap React Native SDK.
-2. Initialize CleverTap in your app root.
-3. Update `services/analytics.js` to map tracking events to the real CleverTap SDK methods.
+The mobile app is integrated with CleverTap through the Expo config plugin and
+`mobile/src/services/analytics.js`. The app tracks:
+
+- `App Opened`
+- `Product Viewed`
+- `Product Added To Cart`
+- `Checkout Started`
+- `Order Completed`
+- A CleverTap charged event for completed orders
+
+### CleverTap setup
+
+1. In CleverTap, open **Settings > Project > Project ID** and copy the
+   account ID and account token for the `eu1` region.
+2. Create `mobile/.env` from `mobile/.env.example` and set
+   `CLEVERTAP_ACCOUNT_ID` and `CLEVERTAP_ACCOUNT_TOKEN`. Keep this file local;
+   do not commit credentials.
+3. For EAS builds, add the same values as EAS environment secrets:
+
+   ```bash
+   eas env:create --name CLEVERTAP_ACCOUNT_ID --value "<account-id>" --environment preview
+   eas env:create --name CLEVERTAP_ACCOUNT_TOKEN --value "<account-token>" --environment preview
+   eas env:create --name CLEVERTAP_ACCOUNT_ID --value "<account-id>" --environment production
+   eas env:create --name CLEVERTAP_ACCOUNT_TOKEN --value "<account-token>" --environment production
+   ```
+
+4. Generate a native development build. CleverTap does not work in Expo Go:
+
+   ```bash
+   cd mobile
+   npx expo prebuild
+   npx expo run:android
+   # or: npx expo run:ios
+   ```
+
+5. Log in or register in the development build, then verify the profile and
+   events in CleverTap under **Analytics**. Events can take a few minutes to
+   appear. Use a test user and test orders while validating.
+
+Push notifications are disabled in the current plugin configuration. Enabling
+them requires Firebase credentials and an Android notification setup, or APNs
+credentials and an iOS notification capability; those are separate from
+profile and event tracking.
