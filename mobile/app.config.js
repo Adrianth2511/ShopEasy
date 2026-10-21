@@ -50,9 +50,7 @@ module.exports = ({ config }) => ({
       {
         accountId: cleverTapAccountId || 'ACCOUNT_ID_REQUIRED',
         accountToken: cleverTapAccountToken || 'ACCOUNT_TOKEN_REQUIRED',
-        accountRegion: 'eu1',
         logLevel: 3,
-        encryptionInTransit: true,
         android: {
           features: {
             enablePush: false,

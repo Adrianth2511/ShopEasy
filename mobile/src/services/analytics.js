@@ -82,10 +82,6 @@ export const identifyUser = (user) => {
       sdk.onUserLogin(filteredProfile);
     }
 
-    if (sdk.profileSet) {
-      sdk.profileSet(filteredProfile);
-    }
-
     if (sdk.recordEvent) {
       sdk.recordEvent('ShopEasy User Identified', {
         HasEmail: Boolean(filteredProfile.Email),
