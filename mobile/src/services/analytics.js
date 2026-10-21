@@ -6,7 +6,13 @@ const getCleverTap = () => {
   }
 
   try {
-    cleverTap = require('clevertap-react-native');
+    const module = require('clevertap-react-native');
+    cleverTap = module.default || module;
+    console.log('[CleverTap] Native SDK loaded', {
+      recordEvent: typeof cleverTap.recordEvent === 'function',
+      onUserLogin: typeof cleverTap.onUserLogin === 'function',
+      profileSet: typeof cleverTap.profileSet === 'function',
+    });
   } catch (error) {
     cleverTap = null;
     console.warn(
@@ -53,20 +59,47 @@ export const identifyUser = (user) => {
     return;
   }
 
-  if (sdk.onUserLogin) {
-    sdk.onUserLogin(filteredProfile);
-  }
+  try {
+    if (sdk.onUserLogin) {
+      sdk.onUserLogin(filteredProfile);
+    }
 
-  if (sdk.profileSet) {
-    sdk.profileSet(filteredProfile);
-  }
+    if (sdk.profileSet) {
+      sdk.profileSet(filteredProfile);
+    }
 
-  if (sdk.recordEvent) {
-    sdk.recordEvent('ShopEasy User Identified', {
-      HasEmail: Boolean(filteredProfile.Email),
-      HasPhone: Boolean(filteredProfile.Phone),
+    if (sdk.recordEvent) {
+      sdk.recordEvent('ShopEasy User Identified', {
+        HasEmail: Boolean(filteredProfile.Email),
+        HasPhone: Boolean(filteredProfile.Phone),
+      });
+    }
+
+    console.log('[CleverTap] User profile queued', {
+      identity: filteredProfile.Identity,
+      email: filteredProfile.Email,
     });
+    verifyCleverTapProfile();
+  } catch (error) {
+    console.error('[CleverTap] Failed to queue user profile', error);
   }
+};
+
+export const verifyCleverTapProfile = () => {
+  const sdk = getCleverTap();
+  if (!sdk?.profileGetCleverTapID) {
+    console.warn('[CleverTap] profileGetCleverTapID is unavailable.');
+    return;
+  }
+
+  sdk.profileGetCleverTapID((error, cleverTapId) => {
+    if (error) {
+      console.error('[CleverTap] Profile ID lookup failed', error);
+      return;
+    }
+
+    console.log('[CleverTap] Profile ID', cleverTapId);
+  });
 };
 
 export const setUserProfile = (props) => {
