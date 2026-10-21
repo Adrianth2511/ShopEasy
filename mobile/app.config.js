@@ -4,20 +4,20 @@ const path = require('path');
 
 const localEnv = fs.existsSync(path.join(__dirname, '.env'))
   ? Object.fromEntries(
-      fs
-        .readFileSync(path.join(__dirname, '.env'), 'utf8')
-        .split(/\r?\n/)
-        .filter((line) => line && !line.trim().startsWith('#') && line.includes('='))
-        .map((line) => {
-          const separator = line.indexOf('=');
-          const key = line.slice(0, separator).trim();
-          const value = line
-            .slice(separator + 1)
-            .trim()
-            .replace(/^(['"])(.*)\1$/, '$2');
-          return [key, value];
-        })
-    )
+    fs
+      .readFileSync(path.join(__dirname, '.env'), 'utf8')
+      .split(/\r?\n/)
+      .filter((line) => line && !line.trim().startsWith('#') && line.includes('='))
+      .map((line) => {
+        const separator = line.indexOf('=');
+        const key = line.slice(0, separator).trim();
+        const value = line
+          .slice(separator + 1)
+          .trim()
+          .replace(/^(['"])(.*)\1$/, '$2');
+        return [key, value];
+      })
+  )
   : {};
 
 const cleverTapAccountId =
@@ -29,14 +29,14 @@ const isEasBuild = process.env.EAS_BUILD === '1' || process.env.EAS_BUILD === 't
 if ((!cleverTapAccountId || !cleverTapAccountToken) && isEasBuild) {
   throw new Error(
     'CLEVERTAP_ACCOUNT_ID and CLEVERTAP_ACCOUNT_TOKEN are required for an EAS build. ' +
-      'Add them with eas env:set.'
+    'Add them with eas env:set.'
   );
 }
 
 if (!cleverTapAccountId || !cleverTapAccountToken) {
   console.warn(
     'CleverTap credentials are not available while Expo is inspecting the project. ' +
-      'Set CLEVERTAP_ACCOUNT_ID and CLEVERTAP_ACCOUNT_TOKEN before prebuilding or building.'
+    'Set CLEVERTAP_ACCOUNT_ID and CLEVERTAP_ACCOUNT_TOKEN before prebuilding or building.'
   );
 }
 
@@ -51,7 +51,7 @@ module.exports = ({ config }) => ({
         accountId: cleverTapAccountId || 'ACCOUNT_ID_REQUIRED',
         accountToken: cleverTapAccountToken || 'ACCOUNT_TOKEN_REQUIRED',
         accountRegion: 'eu1',
-        logLevel: 0,
+        logLevel: 3,
         encryptionInTransit: true,
         android: {
           features: {
@@ -66,5 +66,6 @@ module.exports = ({ config }) => ({
         },
       },
     ],
+    './plugins/withCleverTapAndroid',
   ],
 });

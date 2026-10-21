@@ -13,7 +13,9 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://shopeasy-backend-ofus.onrender.com/api"
+        "EXPO_PUBLIC_API_URL": "https://shopeasy-backend-ofus.onrender.com/api",
+        "CLEVERTAP_ACCOUNT_ID": "4RW-969-Z97Z",
+        "CLEVERTAP_ACCOUNT_TOKEN": "c6c-024"
       }
     },
     "production": {
@@ -21,7 +23,9 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://shopeasy-backend-ofus.onrender.com/api"
+        "EXPO_PUBLIC_API_URL": "https://shopeasy-backend-ofus.onrender.com/api",
+        "CLEVERTAP_ACCOUNT_ID": "4RW-969-Z97Z",
+        "CLEVERTAP_ACCOUNT_TOKEN": "c6c-024"
       }
     }
   },

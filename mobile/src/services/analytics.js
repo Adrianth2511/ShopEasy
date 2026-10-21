@@ -25,7 +25,25 @@ const getCleverTap = () => {
 };
 
 export const initializeAnalytics = () => {
-  getCleverTap();
+  const sdk = getCleverTap();
+  if (sdk) {
+    if (typeof sdk.setDebugLevel === 'function') {
+      sdk.setDebugLevel(3);
+    }
+
+    if (typeof sdk.addListener === 'function') {
+      if (sdk.CleverTapProfileSync) {
+        sdk.addListener(sdk.CleverTapProfileSync, (event) => {
+          console.log('[CleverTap] Profile synced successfully with server:', event);
+        });
+      }
+      if (sdk.CleverTapProfileDidInitialize) {
+        sdk.addListener(sdk.CleverTapProfileDidInitialize, (event) => {
+          console.log('[CleverTap] Profile initialized:', event);
+        });
+      }
+    }
+  }
 };
 
 export const trackEvent = (eventName, props = {}) => {
