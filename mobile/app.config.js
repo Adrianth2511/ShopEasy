@@ -53,7 +53,7 @@ module.exports = ({ config }) => ({
         logLevel: 3,
         android: {
           features: {
-            enablePush: false,
+            enablePush: true,
             enableInApp: true,
             enableInbox: true,
           },
