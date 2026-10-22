@@ -1,6 +1,9 @@
 let cleverTap;
 
-const getCleverTap = () => {
+/**
+ * Returns the cached CleverTap SDK instance or dynamically requires it.
+ */
+export const getCleverTap = () => {
   if (cleverTap !== undefined) {
     return cleverTap;
   }
@@ -8,10 +11,11 @@ const getCleverTap = () => {
   try {
     const module = require('clevertap-react-native');
     cleverTap = module.default || module;
-    console.log('[CleverTap] Native SDK loaded', {
+    console.log('[CleverTap] Native SDK loaded successfully', {
       recordEvent: typeof cleverTap.recordEvent === 'function',
       onUserLogin: typeof cleverTap.onUserLogin === 'function',
-      profileSet: typeof cleverTap.profileSet === 'function',
+      showInbox: typeof cleverTap.showInbox === 'function',
+      getAllDisplayUnits: typeof cleverTap.getAllDisplayUnits === 'function',
     });
   } catch (error) {
     cleverTap = null;
@@ -24,14 +28,41 @@ const getCleverTap = () => {
   return cleverTap;
 };
 
+// Registered listener callbacks
+const displayUnitsSubscribers = new Set();
+const inboxUpdateSubscribers = new Set();
+const pushClickedSubscribers = new Set();
+
+/**
+ * Master initialization function called on application launch.
+ * Sets verbose debug level, creates notification channel, initializes inbox,
+ * and sets up all event listeners for Push, In-App, Inbox, and Native Display.
+ */
 export const initializeAnalytics = () => {
   const sdk = getCleverTap();
-  if (sdk) {
+  if (!sdk) {
+    console.warn('[CleverTap] SDK not available for initialization.');
+    return;
+  }
+
+  try {
+    // 1. Set debug level to 3 (Verbose) for development and testing
     if (typeof sdk.setDebugLevel === 'function') {
       sdk.setDebugLevel(3);
     }
 
+    // 2. Create default Notification Channel for Android (required for Android O and above)
+    createDefaultNotificationChannel();
+
+    // 3. Initialize App Inbox
+    if (typeof sdk.initializeInbox === 'function') {
+      sdk.initializeInbox();
+      console.log('[CleverTap] App Inbox initialized');
+    }
+
+    // 4. Register event listeners if addListener is available
     if (typeof sdk.addListener === 'function') {
+      // --- Profile Lifecycle Listeners ---
       if (sdk.CleverTapProfileSync) {
         sdk.addListener(sdk.CleverTapProfileSync, (event) => {
           console.log('[CleverTap] Profile synced successfully with server:', event);
@@ -42,19 +73,428 @@ export const initializeAnalytics = () => {
           console.log('[CleverTap] Profile initialized:', event);
         });
       }
+
+      // --- Push Notification Listeners ---
+      if (sdk.CleverTapPushNotificationClicked) {
+        sdk.addListener(sdk.CleverTapPushNotificationClicked, (event) => {
+          console.log('[CleverTap] Push Notification clicked payload:', event);
+          pushClickedSubscribers.forEach((cb) => {
+            try { cb(event); } catch (e) { console.error('[CleverTap] Push clicked callback error:', e); }
+          });
+        });
+      }
+      if (sdk.CleverTapPushPermissionResponseReceived) {
+        sdk.addListener(sdk.CleverTapPushPermissionResponseReceived, (event) => {
+          console.log('[CleverTap] Push permission response received:', event);
+        });
+      }
+
+      // --- In-App Notification Listeners ---
+      if (sdk.CleverTapInAppNotificationShowed) {
+        sdk.addListener(sdk.CleverTapInAppNotificationShowed, (event) => {
+          console.log('[CleverTap] In-App Notification showed:', event);
+        });
+      }
+      if (sdk.CleverTapInAppNotificationDismissed) {
+        sdk.addListener(sdk.CleverTapInAppNotificationDismissed, (event) => {
+          console.log('[CleverTap] In-App Notification dismissed:', event);
+        });
+      }
+      if (sdk.CleverTapInAppNotificationButtonTapped) {
+        sdk.addListener(sdk.CleverTapInAppNotificationButtonTapped, (event) => {
+          console.log('[CleverTap] In-App Notification CTA button tapped:', event);
+        });
+      }
+
+      // --- App Inbox Listeners ---
+      if (sdk.CleverTapInboxDidInitialize) {
+        sdk.addListener(sdk.CleverTapInboxDidInitialize, (event) => {
+          console.log('[CleverTap] Inbox did initialize event received:', event);
+          inboxUpdateSubscribers.forEach((cb) => {
+            try { cb(event); } catch (e) { console.error(e); }
+          });
+        });
+      }
+      if (sdk.CleverTapInboxMessagesDidUpdate) {
+        sdk.addListener(sdk.CleverTapInboxMessagesDidUpdate, (event) => {
+          console.log('[CleverTap] Inbox messages did update event received:', event);
+          inboxUpdateSubscribers.forEach((cb) => {
+            try { cb(event); } catch (e) { console.error(e); }
+          });
+        });
+      }
+      if (sdk.CleverTapInboxMessageButtonTapped) {
+        sdk.addListener(sdk.CleverTapInboxMessageButtonTapped, (event) => {
+          console.log('[CleverTap] Inbox message button tapped:', event);
+        });
+      }
+      if (sdk.CleverTapInboxMessageTapped) {
+        sdk.addListener(sdk.CleverTapInboxMessageTapped, (event) => {
+          console.log('[CleverTap] Inbox message tapped:', event);
+        });
+      }
+
+      // --- Native Display Listeners ---
+      if (sdk.CleverTapDisplayUnitsLoaded) {
+        sdk.addListener(sdk.CleverTapDisplayUnitsLoaded, (units) => {
+          console.log('[CleverTap] Native Display units loaded:', units);
+          displayUnitsSubscribers.forEach((cb) => {
+            try { cb(units); } catch (e) { console.error('[CleverTap] Display unit callback error:', e); }
+          });
+        });
+      }
+    }
+
+    // 5. Prompt for push notifications permission (with Push Primer)
+    promptPushPrimer();
+
+  } catch (err) {
+    console.error('[CleverTap] Error during initializeAnalytics:', err);
+  }
+};
+
+/* =========================================================================
+ * 1. PUSH NOTIFICATIONS
+ * ========================================================================= */
+
+/**
+ * Creates the default notification channel for Android 8.0 (API 26) and above.
+ */
+export const createDefaultNotificationChannel = () => {
+  const sdk = getCleverTap();
+  if (sdk?.createNotificationChannel) {
+    sdk.createNotificationChannel(
+      'shopeasy_channel',
+      'ShopEasy Notifications',
+      'ShopEasy General, Offers, and Order Updates',
+      5, // Importance: 5 = High (Heads-up / sound)
+      true // Show badge
+    );
+    console.log('[CleverTap] Notification channel "shopeasy_channel" created');
+  }
+};
+
+/**
+ * Custom Notification Channel creator
+ */
+export const createNotificationChannel = (channelId, channelName, channelDescription, importance = 5, showBadge = true) => {
+  const sdk = getCleverTap();
+  if (sdk?.createNotificationChannel) {
+    sdk.createNotificationChannel(channelId, channelName, channelDescription, importance, showBadge);
+  }
+};
+
+/**
+ * Displays a Push Primer in-app prompt to educate the user before requesting
+ * system notification permission.
+ */
+export const promptPushPrimer = (customConfig = null) => {
+  const sdk = getCleverTap();
+  if (!sdk?.promptPushPrimer) {
+    return;
+  }
+
+  const primerConfig = customConfig || {
+    inAppType: 'alert',
+    titleText: 'Never Miss a Deal!',
+    messageText: 'Enable notifications to get real-time order tracking and exclusive discounts on ShopEasy.',
+    followDeviceOrientation: true,
+    positiveBtnText: 'Allow Notifications',
+    negativeBtnText: 'Maybe Later',
+    fallbackToSettings: true,
+  };
+
+  try {
+    sdk.promptPushPrimer(primerConfig);
+    console.log('[CleverTap] Push Primer prompted');
+  } catch (e) {
+    console.warn('[CleverTap] Push Primer prompt failed, falling back to direct prompt', e);
+    if (sdk.promptForPushPermission) {
+      sdk.promptForPushPermission(true);
     }
   }
 };
 
-export const trackEvent = (eventName, props = {}) => {
+/**
+ * Direct system dialog prompt for notification permission (without primer).
+ */
+export const promptForPushPermission = (fallbackToSettings = true) => {
   const sdk = getCleverTap();
-  if (!sdk?.recordEvent) {
+  if (sdk?.promptForPushPermission) {
+    sdk.promptForPushPermission(fallbackToSettings);
+  }
+};
+
+/**
+ * Checks if push notification permission is granted on the device.
+ */
+export const checkPushPermission = (callback) => {
+  const sdk = getCleverTap();
+  if (sdk?.isPushPermissionGranted) {
+    sdk.isPushPermissionGranted((err, res) => {
+      if (callback) callback(err, res);
+    });
+  }
+};
+
+/**
+ * Register for Push on iOS
+ */
+export const registerForPush = () => {
+  const sdk = getCleverTap();
+  if (sdk?.registerForPush) {
+    sdk.registerForPush();
+  }
+};
+
+/**
+ * Manually set the FCM Push Token if custom messaging service is used.
+ */
+export const setFCMPushToken = (token) => {
+  const sdk = getCleverTap();
+  if (sdk?.setFCMPushToken && token) {
+    sdk.setFCMPushToken(token);
+  }
+};
+
+/**
+ * Subscribe to push notification click events.
+ */
+export const onPushNotificationClicked = (callback) => {
+  pushClickedSubscribers.add(callback);
+  return () => pushClickedSubscribers.delete(callback);
+};
+
+/* =========================================================================
+ * 2. IN-APP NOTIFICATIONS
+ * ========================================================================= */
+
+/**
+ * Temporarily suspends in-app notifications (e.g. during checkout flow).
+ */
+export const suspendInAppNotifications = () => {
+  const sdk = getCleverTap();
+  if (sdk?.suspendInAppNotifications) {
+    sdk.suspendInAppNotifications();
+    console.log('[CleverTap] In-App notifications suspended');
+  }
+};
+
+/**
+ * Resumes displaying in-app notifications and presents queued ones.
+ */
+export const resumeInAppNotifications = () => {
+  const sdk = getCleverTap();
+  if (sdk?.resumeInAppNotifications) {
+    sdk.resumeInAppNotifications();
+    console.log('[CleverTap] In-App notifications resumed');
+  }
+};
+
+/**
+ * Discards pending in-app notifications and suspends new ones.
+ */
+export const discardInAppNotifications = () => {
+  const sdk = getCleverTap();
+  if (sdk?.discardInAppNotifications) {
+    sdk.discardInAppNotifications();
+    console.log('[CleverTap] In-App notifications discarded');
+  }
+};
+
+/**
+ * Programmatically dismisses the currently active PIP (picture-in-picture) in-app.
+ */
+export const dismissPipInApp = () => {
+  const sdk = getCleverTap();
+  if (sdk?.dismissPipInApp) {
+    sdk.dismissPipInApp();
+  }
+};
+
+/* =========================================================================
+ * 3. APP INBOX
+ * ========================================================================= */
+
+/**
+ * Shows the native CleverTap App Inbox Activity / View.
+ */
+export const showAppInbox = (customStyle = null) => {
+  const sdk = getCleverTap();
+  if (!sdk?.showInbox) {
+    console.warn('[CleverTap] showInbox is unavailable');
     return;
   }
 
-  sdk.recordEvent(eventName, props);
+  const defaultStyle = {
+    navBarTitle: 'Notifications & Offers',
+    navBarTitleColor: '#1e1b4b',
+    navBarColor: '#ffffff',
+    inboxBackgroundColor: '#f8f9ff',
+    backButtonColor: '#6366f1',
+    unselectedTabColor: '#94a3b8',
+    selectedTabColor: '#6366f1',
+    selectedTabIndicatorColor: '#6366f1',
+    noMessageViewText: 'No notifications right now',
+    noMessageViewTextColor: '#64748b',
+  };
+
+  sdk.showInbox(customStyle || defaultStyle);
 };
 
+/**
+ * Dismisses the App Inbox programmatically.
+ */
+export const dismissAppInbox = () => {
+  const sdk = getCleverTap();
+  if (sdk?.dismissInbox) {
+    sdk.dismissInbox();
+  }
+};
+
+/**
+ * Gets total unread messages count in App Inbox.
+ */
+export const getInboxUnreadCount = (callback) => {
+  const sdk = getCleverTap();
+  if (sdk?.getInboxMessageUnreadCount) {
+    sdk.getInboxMessageUnreadCount((err, count) => {
+      if (callback) callback(err, count);
+    });
+  } else if (callback) {
+    callback(null, 0);
+  }
+};
+
+/**
+ * Gets total message count in App Inbox.
+ */
+export const getInboxMessageCount = (callback) => {
+  const sdk = getCleverTap();
+  if (sdk?.getInboxMessageCount) {
+    sdk.getInboxMessageCount((err, count) => {
+      if (callback) callback(err, count);
+    });
+  }
+};
+
+/**
+ * Returns all inbox messages.
+ */
+export const getAllInboxMessages = (callback) => {
+  const sdk = getCleverTap();
+  if (sdk?.getAllInboxMessages) {
+    sdk.getAllInboxMessages((err, messages) => {
+      if (callback) callback(err, messages);
+    });
+  }
+};
+
+/**
+ * Marks an inbox message as read.
+ */
+export const markInboxMessageRead = (messageId) => {
+  const sdk = getCleverTap();
+  if (sdk?.markReadInboxMessageForId && messageId) {
+    sdk.markReadInboxMessageForId(messageId);
+  }
+};
+
+/**
+ * Deletes an inbox message by ID.
+ */
+export const deleteInboxMessage = (messageId) => {
+  const sdk = getCleverTap();
+  if (sdk?.deleteInboxMessageForId && messageId) {
+    sdk.deleteInboxMessageForId(messageId);
+  }
+};
+
+/**
+ * Subscribe to App Inbox updates (when messages arrive or are modified).
+ */
+export const onInboxUpdated = (callback) => {
+  inboxUpdateSubscribers.add(callback);
+  return () => inboxUpdateSubscribers.delete(callback);
+};
+
+/* =========================================================================
+ * 4. NATIVE DISPLAY
+ * ========================================================================= */
+
+/**
+ * Fetches all available Native Display units.
+ */
+export const getAllDisplayUnits = (callback) => {
+  const sdk = getCleverTap();
+  if (sdk?.getAllDisplayUnits) {
+    sdk.getAllDisplayUnits((err, units) => {
+      if (callback) callback(err, units);
+    });
+  } else if (callback) {
+    callback(null, []);
+  }
+};
+
+/**
+ * Fetches a specific Native Display unit by its unitID.
+ */
+export const getDisplayUnitForId = (unitId, callback) => {
+  const sdk = getCleverTap();
+  if (sdk?.getDisplayUnitForId && unitId) {
+    sdk.getDisplayUnitForId(unitId, (err, unit) => {
+      if (callback) callback(err, unit);
+    });
+  }
+};
+
+/**
+ * Records a Display Unit Viewed impression to CleverTap.
+ */
+export const recordDisplayUnitViewed = (unitId) => {
+  const sdk = getCleverTap();
+  if (sdk?.pushDisplayUnitViewedEventForID && unitId) {
+    sdk.pushDisplayUnitViewedEventForID(unitId);
+    console.log('[CleverTap] Display unit viewed recorded:', unitId);
+  }
+};
+
+/**
+ * Records a Display Unit Clicked event to CleverTap.
+ */
+export const recordDisplayUnitClicked = (unitId) => {
+  const sdk = getCleverTap();
+  if (sdk?.pushDisplayUnitClickedEventForID && unitId) {
+    sdk.pushDisplayUnitClickedEventForID(unitId);
+    console.log('[CleverTap] Display unit clicked recorded:', unitId);
+  }
+};
+
+/**
+ * Records an element-level click within a Display Unit.
+ */
+export const recordDisplayUnitElementClicked = (unitId, additionalProperties = {}) => {
+  const sdk = getCleverTap();
+  if (sdk?.pushDisplayUnitElementClickedEventForID && unitId) {
+    sdk.pushDisplayUnitElementClickedEventForID(unitId, additionalProperties);
+  }
+};
+
+/**
+ * Subscribe to Native Display units loaded event.
+ */
+export const onDisplayUnitsLoaded = (callback) => {
+  displayUnitsSubscribers.add(callback);
+  return () => displayUnitsSubscribers.delete(callback);
+};
+
+/* =========================================================================
+ * 5. USER PROFILE & IDENTITY
+ * ========================================================================= */
+
+/**
+ * Pushes logged in user profile to CleverTap and records identification event.
+ */
 export const identifyUser = (user) => {
   if (!user) {
     return;
@@ -67,13 +507,16 @@ export const identifyUser = (user) => {
     Phone: user.phone || user.Phone,
     Identity: identity ? String(identity) : undefined,
   };
-  const filteredProfile = Object.fromEntries(
-    Object.entries(profile).filter(([, value]) => value !== undefined && value !== null && value !== '')
-  );
-  const sdk = getCleverTap();
 
+  const filteredProfile = Object.fromEntries(
+    Object.entries(profile).filter(
+      ([, value]) => value !== undefined && value !== null && value !== ''
+    )
+  );
+
+  const sdk = getCleverTap();
   if (!sdk || Object.keys(filteredProfile).length === 0) {
-    console.warn('[CleverTap] Cannot identify user: native SDK is unavailable or profile is empty.');
+    console.warn('[CleverTap] Cannot identify user: native SDK unavailable or profile empty.');
     return;
   }
 
@@ -89,33 +532,20 @@ export const identifyUser = (user) => {
       });
     }
 
-    console.log('[CleverTap] User profile queued', {
+    console.log('[CleverTap] User profile queued:', {
       identity: filteredProfile.Identity,
       email: filteredProfile.Email,
     });
+
     verifyCleverTapProfile();
   } catch (error) {
-    console.error('[CleverTap] Failed to queue user profile', error);
+    console.error('[CleverTap] Failed to queue user profile:', error);
   }
 };
 
-export const verifyCleverTapProfile = () => {
-  const sdk = getCleverTap();
-  if (!sdk?.profileGetCleverTapID) {
-    console.warn('[CleverTap] profileGetCleverTapID is unavailable.');
-    return;
-  }
-
-  sdk.profileGetCleverTapID((error, cleverTapId) => {
-    if (error) {
-      console.error('[CleverTap] Profile ID lookup failed', error);
-      return;
-    }
-
-    console.log('[CleverTap] Profile ID', cleverTapId);
-  });
-};
-
+/**
+ * Updates user profile properties without changing identity.
+ */
 export const setUserProfile = (props) => {
   const sdk = getCleverTap();
   if (sdk?.profileSet && props) {
@@ -123,49 +553,86 @@ export const setUserProfile = (props) => {
   }
 };
 
+/**
+ * Updates user geographic location.
+ */
 export const setUserLocation = (latitude, longitude) => {
   const sdk = getCleverTap();
-  if (sdk?.setLocation) {
+  if (sdk?.setLocation && typeof latitude === 'number' && typeof longitude === 'number') {
     sdk.setLocation(latitude, longitude);
   }
 };
 
-export const trackProductViewed = (product) => {
-  if (!product?._id) {
+/**
+ * Fetches the unique CleverTap ID assigned to this device/user.
+ */
+export const getCleverTapID = (callback) => {
+  const sdk = getCleverTap();
+  if (sdk?.profileGetCleverTapID) {
+    sdk.profileGetCleverTapID((error, cleverTapId) => {
+      if (callback) callback(error, cleverTapId);
+    });
+  } else if (callback) {
+    callback(new Error('SDK unavailable'), null);
+  }
+};
+
+export const verifyCleverTapProfile = () => {
+  getCleverTapID((error, cleverTapId) => {
+    if (error) {
+      console.error('[CleverTap] Profile ID lookup failed:', error);
+      return;
+    }
+    console.log('[CleverTap] Active CleverTap ID:', cleverTapId);
+  });
+};
+
+/* =========================================================================
+ * 6. ECOMMERCE & BEHAVIORAL EVENTS
+ * ========================================================================= */
+
+/**
+ * Record a generic event with properties.
+ */
+export const trackEvent = (eventName, props = {}) => {
+  const sdk = getCleverTap();
+  if (!sdk?.recordEvent) {
     return;
   }
 
+  sdk.recordEvent(eventName, props);
+};
+
+export const trackProductViewed = (product) => {
+  if (!product?._id) return;
   trackEvent('Product Viewed', {
     productId: product._id,
     productName: product.name,
     category: product.category,
-    price: product.price
+    price: product.price,
   });
 };
 
-export const trackAddToCart = (product, quantity) => {
-  if (!product?._id) {
-    return;
-  }
-
+export const trackAddToCart = (product, quantity = 1) => {
+  if (!product?._id) return;
   trackEvent('Product Added To Cart', {
     productId: product._id,
     productName: product.name,
     quantity,
-    price: product.price
+    price: product.price,
   });
 };
 
 export const trackCheckoutStarted = (cartTotal) => {
   trackEvent('Checkout Started', {
-    totalValue: cartTotal
+    totalValue: cartTotal,
   });
 };
 
 export const trackOrderCompleted = (orderId, totalValue, items = []) => {
   trackEvent('Order Completed', {
     orderId,
-    totalValue
+    totalValue,
   });
 
   const sdk = getCleverTap();
@@ -178,5 +645,42 @@ export const trackOrderCompleted = (orderId, totalValue, items = []) => {
       },
       items
     );
+    console.log('[CleverTap] Charged event recorded for order:', orderId);
+  }
+};
+
+/* =========================================================================
+ * 7. GDPR & PRIVACY CONTROLS
+ * ========================================================================= */
+
+/**
+ * Completely opt in or out of all CleverTap tracking and communications.
+ */
+export const setOptOut = (optOut) => {
+  const sdk = getCleverTap();
+  if (sdk?.setOptOut) {
+    sdk.setOptOut(Boolean(optOut));
+    console.log('[CleverTap] setOptOut:', optOut);
+  }
+};
+
+/**
+ * Pause / resume real-time event transmission.
+ */
+export const setOffline = (offline) => {
+  const sdk = getCleverTap();
+  if (sdk?.setOffline) {
+    sdk.setOffline(Boolean(offline));
+    console.log('[CleverTap] setOffline:', offline);
+  }
+};
+
+/**
+ * Enable or disable device network info reporting (Wi-Fi, IP, Bluetooth).
+ */
+export const enableDeviceNetworkInfoReporting = (enable) => {
+  const sdk = getCleverTap();
+  if (sdk?.enableDeviceNetworkInfoReporting) {
+    sdk.enableDeviceNetworkInfoReporting(Boolean(enable));
   }
 };

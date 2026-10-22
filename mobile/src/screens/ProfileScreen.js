@@ -1,10 +1,24 @@
-import React, { useContext } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthContext } from '../context/AuthContext';
+import {
+  showAppInbox,
+  promptPushPrimer,
+  getCleverTapID,
+} from '../services/analytics';
 
 export default function ProfileScreen({ navigation }) {
   const { userInfo, logout } = useContext(AuthContext);
+  const [cleverTapId, setCleverTapId] = useState(null);
+
+  useEffect(() => {
+    getCleverTapID((err, id) => {
+      if (!err && id) {
+        setCleverTapId(id);
+      }
+    });
+  }, []);
 
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
@@ -21,11 +35,11 @@ export default function ProfileScreen({ navigation }) {
 
   const menuItems = [
     { icon: '📦', label: 'My Orders', onPress: () => navigation.navigate('Orders') },
+    { icon: '🔔', label: 'App Inbox & Messages', onPress: () => showAppInbox() },
+    { icon: '📲', label: 'Notification Permissions', onPress: () => promptPushPrimer() },
     { icon: '📍', label: 'Saved Addresses', onPress: () => {} },
     { icon: '💳', label: 'Payment Methods', onPress: () => {} },
-    { icon: '🔔', label: 'Notifications', onPress: () => {} },
     { icon: '❓', label: 'Help & Support', onPress: () => {} },
-    { icon: '⭐', label: 'Rate the App', onPress: () => {} },
   ];
 
   return (
@@ -84,6 +98,13 @@ export default function ProfileScreen({ navigation }) {
           <Text style={styles.logoutText}>🚪  Logout</Text>
         </TouchableOpacity>
 
+        {cleverTapId ? (
+          <View style={styles.ctIdContainer}>
+            <Text style={styles.ctIdLabel}>CleverTap ID</Text>
+            <Text style={styles.ctIdValue} selectable>{cleverTapId}</Text>
+          </View>
+        ) : null}
+
         <Text style={styles.version}>ShopEasy v1.0.0</Text>
       </ScrollView>
     </SafeAreaView>
@@ -111,5 +132,8 @@ const styles = StyleSheet.create({
   menuArrow: { fontSize: 20, color: '#ccc' },
   logoutBtn: { margin: 16, marginTop: 20, backgroundColor: '#fff', borderRadius: 14, paddingVertical: 16, alignItems: 'center', borderWidth: 1.5, borderColor: '#ef4444' },
   logoutText: { color: '#ef4444', fontSize: 16, fontWeight: '700' },
+  ctIdContainer: { marginHorizontal: 20, marginBottom: 14, padding: 12, backgroundColor: '#eef2ff', borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: '#c7d2fe' },
+  ctIdLabel: { fontSize: 11, fontWeight: '700', color: '#4338ca', textTransform: 'uppercase', marginBottom: 2 },
+  ctIdValue: { fontSize: 11, color: '#312e81', fontFamily: 'monospace' },
   version: { textAlign: 'center', color: '#bbb', fontSize: 12, marginBottom: 20 },
 });

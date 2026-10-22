@@ -5,17 +5,43 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../config/api';
-import { trackEvent } from '../services/analytics';
+import {
+  trackEvent,
+  showAppInbox,
+  getInboxUnreadCount,
+  onInboxUpdated,
+} from '../services/analytics';
+import NativeDisplayBanner from '../components/NativeDisplayBanner';
 
 export default function HomeScreen({ navigation }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [inboxUnreadCount, setInboxUnreadCount] = useState(0);
 
   useEffect(() => {
     trackEvent('App Opened');
     fetchProducts();
+    refreshInboxBadge();
+
+    const unsubscribeInbox = onInboxUpdated(() => {
+      refreshInboxBadge();
+    });
+
+    return () => {
+      if (typeof unsubscribeInbox === 'function') {
+        unsubscribeInbox();
+      }
+    };
   }, []);
+
+  const refreshInboxBadge = () => {
+    getInboxUnreadCount((err, count) => {
+      if (!err && typeof count === 'number') {
+        setInboxUnreadCount(count);
+      }
+    });
+  };
 
   const fetchProducts = async () => {
     try {
@@ -33,6 +59,7 @@ export default function HomeScreen({ navigation }) {
   const onRefresh = () => {
     setRefreshing(true);
     fetchProducts();
+    refreshInboxBadge();
   };
 
   const renderProduct = ({ item }) => (
@@ -70,18 +97,34 @@ export default function HomeScreen({ navigation }) {
           <Text style={styles.greeting}>Good day! 👋</Text>
           <Text style={styles.headerTitle}>ShopEasy</Text>
         </View>
-        <TouchableOpacity
-          style={styles.cartBtn}
-          onPress={() => navigation.navigate('Cart')}
-        >
-          <Text style={styles.cartIcon}>🛒</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.inboxBtn}
+            onPress={() => showAppInbox()}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.inboxIcon}>🔔</Text>
+            {inboxUnreadCount > 0 ? (
+              <View style={styles.inboxBadge}>
+                <Text style={styles.inboxBadgeText}>
+                  {inboxUnreadCount > 9 ? '9+' : inboxUnreadCount}
+                </Text>
+              </View>
+            ) : null}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.cartBtn}
+            onPress={() => navigation.navigate('Cart')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.cartIcon}>🛒</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Banner */}
-      <View style={styles.banner}>
-        <Text style={styles.bannerTitle}>🔥 Today's Deals</Text>
-        <Text style={styles.bannerSub}>Up to 40% off on selected items</Text>
+      {/* Native Display Banner (CleverTap or fallback promo) */}
+      <View style={{ marginTop: 14 }}>
+        <NativeDisplayBanner navigation={navigation} />
       </View>
 
       {loading ? (
@@ -117,6 +160,11 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
   greeting: { fontSize: 13, color: '#888' },
   headerTitle: { fontSize: 22, fontWeight: '800', color: '#1a1a2e' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  inboxBtn: { backgroundColor: '#f0f0ff', padding: 10, borderRadius: 12, position: 'relative' },
+  inboxIcon: { fontSize: 20 },
+  inboxBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#ef4444', borderRadius: 9, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4, borderWidth: 1.5, borderColor: '#fff' },
+  inboxBadgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
   cartBtn: { backgroundColor: '#f0f0ff', padding: 10, borderRadius: 12 },
   cartIcon: { fontSize: 20 },
   banner: { margin: 15, padding: 20, backgroundColor: '#6366f1', borderRadius: 16, },
