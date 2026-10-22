@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "473258987317",
+    "project_id": "shopeasy-23df4",
+    "storage_bucket": "shopeasy-23df4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:473258987317:android:17e97b8b50ae04b051867c",
+        "android_client_info": {
+          "package_name": "com.adrian.shopeasy"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDOJXu7SrMCBH9UJQi2XiHZXtK0B5R7yDI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

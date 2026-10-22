@@ -14,7 +14,8 @@
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.INTERNET",
-        "android.permission.ACCESS_NETWORK_STATE"
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.POST_NOTIFICATIONS"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -26,17 +27,6 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": [
-      [
-        "@clevertap/clevertap-expo-plugin",
-        {
-          "accountId": "4RW-969-Z97Z",
-          "accountToken": "c6c-024",
-          "logLevel": 3
-        }
-      ],
-      "./plugins/withCleverTapAndroid"
-    ],
     "extra": {
       "eas": {
         "projectId": "e2b19834-8adf-41c2-b225-f3a747cf9fab"

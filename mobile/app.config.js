@@ -50,13 +50,22 @@ module.exports = ({ config }) => ({
       {
         accountId: cleverTapAccountId || 'ACCOUNT_ID_REQUIRED',
         accountToken: cleverTapAccountToken || 'ACCOUNT_TOKEN_REQUIRED',
+        disableAppLaunchedEvent: false,
         logLevel: 3,
+        customIdentifiers: 'Identity,Email',
         android: {
           features: {
             enablePush: true,
+            enablePushTemplates: true,
             enableInApp: true,
             enableInbox: true,
+            enableMediaForInAppsInbox: true,
+            enableInstallReferrer: true,
+            enableHmsPush: false,
+            enableGoogleAdId: false,
+            enablePlayReview: true,
           },
+          defaultNotificationChannelId: 'shopeasy_channel',
           registerActivityLifecycleCallbacks: true,
         },
         ios: {
