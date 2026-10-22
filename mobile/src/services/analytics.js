@@ -605,21 +605,42 @@ export const trackEvent = (eventName, props = {}) => {
 
 export const trackProductViewed = (product) => {
   if (!product?._id) return;
+  const priceNum = typeof product.price === 'number' ? product.price : parseFloat(product.price) || 0;
   trackEvent('Product Viewed', {
-    productId: product._id,
-    productName: product.name,
-    category: product.category,
-    price: product.price,
+    productId: String(product._id),
+    productName: product.name || '',
+    category: product.category || 'General',
+    price: priceNum,
+    image: product.image || '',
+    // Common aliases for CleverTap Liquid personalization tags
+    name: product.name || '',
+    Price: priceNum,
+    Product_Name: product.name || '',
+    Product_Image: product.image || '',
+    Product_Price: priceNum,
+    Product_Id: String(product._id),
   });
 };
 
 export const trackAddToCart = (product, quantity = 1) => {
   if (!product?._id) return;
+  const priceNum = typeof product.price === 'number' ? product.price : parseFloat(product.price) || 0;
+  const qtyNum = typeof quantity === 'number' ? quantity : parseInt(quantity, 10) || 1;
   trackEvent('Product Added To Cart', {
-    productId: product._id,
-    productName: product.name,
-    quantity,
-    price: product.price,
+    productId: String(product._id),
+    productName: product.name || '',
+    category: product.category || 'General',
+    price: priceNum,
+    image: product.image || '',
+    quantity: qtyNum,
+    // Common aliases for CleverTap Liquid personalization tags
+    name: product.name || '',
+    Price: priceNum,
+    Product_Name: product.name || '',
+    Product_Image: product.image || '',
+    Product_Price: priceNum,
+    Product_Id: String(product._id),
+    Quantity: qtyNum,
   });
 };
 
