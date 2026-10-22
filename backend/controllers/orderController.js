@@ -28,9 +28,10 @@ const createOrder = async (req, res) => {
         price: product.price
       });
       
-      // Update stock
-      product.stock -= item.quantity;
-      await product.save();
+      // Update stock atomically
+      await Product.findByIdAndUpdate(product._id, {
+        $inc: { stock: -item.quantity }
+      });
     }
 
     const deliveryFee = 10; // Fixed fee for now
