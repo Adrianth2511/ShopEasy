@@ -1,3 +1,5 @@
+import { navigate } from '../navigation/navigationRef';
+
 let cleverTap;
 
 /**
@@ -51,8 +53,9 @@ export const initializeAnalytics = () => {
       sdk.setDebugLevel(3);
     }
 
-    // 2. Create default Notification Channel for Android (required for Android O and above)
+    // 2. Create notification channels for Android (required for Android O and above)
     createDefaultNotificationChannel();
+    createSoundNotificationChannel();
 
     // 3. Initialize App Inbox
     if (typeof sdk.initializeInbox === 'function') {
@@ -78,6 +81,7 @@ export const initializeAnalytics = () => {
       if (sdk.CleverTapPushNotificationClicked) {
         sdk.addListener(sdk.CleverTapPushNotificationClicked, (event) => {
           console.log('[CleverTap] Push Notification clicked payload:', event);
+          handlePushNotificationPayload(event);
           pushClickedSubscribers.forEach((cb) => {
             try { cb(event); } catch (e) { console.error('[CleverTap] Push clicked callback error:', e); }
           });
@@ -181,6 +185,123 @@ export const createNotificationChannel = (channelId, channelName, channelDescrip
   const sdk = getCleverTap();
   if (sdk?.createNotificationChannel) {
     sdk.createNotificationChannel(channelId, channelName, channelDescription, importance, showBadge);
+  }
+};
+
+/**
+ * Creates a notification channel with Custom Sound support (Android 8.0+ / API 26+).
+ * The sound file (e.g. 'notification_sound.mp3') must be located in android/app/src/main/res/raw/
+ * Note: Android OS locks channel settings once created. If you want to change the sound file,
+ * use a new channel ID (e.g. 'shopeasy_sound_channel_v2') or reinstall the app.
+ *
+ * @param {string} channelId - Channel ID, e.g. 'shopeasy_sound_channel'
+ * @param {string} channelName - e.g. 'ShopEasy Special Deals & Alerts'
+ * @param {string} channelDescription - e.g. 'Flash sales, orders, and promotions with custom sound'
+ * @param {number} importance - 5 for IMPORTANCE_MAX (heads-up notification + sound)
+ * @param {boolean} showBadge - true
+ * @param {string} soundFileName - File name with extension in res/raw (e.g. 'notification_sound.mp3')
+ */
+export const createSoundNotificationChannel = (
+  channelId = 'shopeasy_sound_channel',
+  channelName = 'ShopEasy Special Deals & Alerts',
+  channelDescription = 'Flash sales, orders, and promotions with custom sound',
+  importance = 5,
+  showBadge = true,
+  soundFileName = 'notification_sound.wav'
+) => {
+  const sdk = getCleverTap();
+  if (sdk?.createNotificationChannelWithSound) {
+    sdk.createNotificationChannelWithSound(
+      channelId,
+      channelName,
+      channelDescription,
+      importance,
+      showBadge,
+      soundFileName
+    );
+    console.log(`[CleverTap] Sound notification channel "${channelId}" created with sound: ${soundFileName}`);
+  } else if (sdk?.createNotificationChannel) {
+    sdk.createNotificationChannel(channelId, channelName, channelDescription, importance, showBadge);
+    console.log(`[CleverTap] Fallback notification channel "${channelId}" created (without sound method)`);
+  }
+};
+
+/**
+ * Handles action button clicks, custom action IDs, and deep links from push notifications.
+ *
+ * When an action button is clicked, CleverTap supplies:
+ * - actionId / wzrk_c2a: The identifier of the action button clicked (e.g. ACTION_VIEW_CART, ACTION_SHOP)
+ * - wzrk_dl / deep_link: The URL / deeplink assigned to that button or notification (e.g. shopeasy://cart)
+ */
+export const handlePushNotificationPayload = (event) => {
+  if (!event || typeof event !== 'object') return;
+
+  const actionId = event.actionId || event.action_id || event.wzrk_c2a;
+  const deeplink = event.wzrk_dl || event.deep_link || event.actionUrl;
+
+  console.log('[CleverTap] Handling push notification click:', {
+    actionId,
+    deeplink,
+    campaignId: event.wzrk_id,
+  });
+
+  // Track the action button click to CleverTap
+  if (actionId) {
+    trackEvent('Push Action Button Clicked', {
+      actionId: String(actionId),
+      campaignId: String(event.wzrk_id || ''),
+      hasDeeplink: Boolean(deeplink),
+    });
+  }
+
+  // 1. Check Deeplink first (if set on the notification or action button)
+  if (deeplink && typeof deeplink === 'string') {
+    try {
+      const cleanUrl = deeplink.replace(/^shopeasy:\/\//, '').replace(/^https?:\/\/[^\/]+\//, '');
+      const [path] = cleanUrl.split('?');
+      const segments = path.split('/').filter(Boolean);
+
+      if (segments[0] === 'cart') {
+        navigate('Main', { screen: 'Cart' });
+        return;
+      } else if (segments[0] === 'products' || segments[0] === 'shop') {
+        navigate('Main', { screen: 'Products' });
+        return;
+      } else if (segments[0] === 'orders') {
+        navigate('Main', { screen: 'Orders' });
+        return;
+      } else if (segments[0] === 'profile') {
+        navigate('Main', { screen: 'Profile' });
+        return;
+      } else if (segments[0] === 'product' && segments[1]) {
+        navigate('ProductDetails', { productId: segments[1] });
+        return;
+      } else if (segments[0] === 'order' && segments[1]) {
+        navigate('OrderDetails', { orderId: segments[1] });
+        return;
+      }
+    } catch (err) {
+      console.warn('[CleverTap] Error parsing push deeplink:', deeplink, err);
+    }
+  }
+
+  // 2. Route based on Action ID if deeplink was empty
+  if (actionId) {
+    const normalized = String(actionId).toLowerCase();
+
+    if (normalized.includes('cart')) {
+      navigate('Main', { screen: 'Cart' });
+    } else if (normalized.includes('product') || normalized.includes('shop') || normalized.includes('deal')) {
+      navigate('Main', { screen: 'Products' });
+    } else if (normalized.includes('order')) {
+      navigate('Main', { screen: 'Orders' });
+    } else if (normalized.includes('profile') || normalized.includes('account')) {
+      navigate('Main', { screen: 'Profile' });
+    } else if (normalized.includes('dismiss') || normalized.includes('cancel')) {
+      console.log('[CleverTap] Notification dismissed via action button');
+    } else {
+      console.log('[CleverTap] Unhandled action button ID:', actionId);
+    }
   }
 };
 

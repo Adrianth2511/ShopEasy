@@ -65,7 +65,8 @@ module.exports = ({ config }) => ({
             enableGoogleAdId: false,
             enablePlayReview: true,
           },
-          defaultNotificationChannelId: 'shopeasy_channel',
+          defaultNotificationChannelId: 'shopeasy_sound_channel',
+          customNotificationSound: ['notification_sound.wav'],
           registerActivityLifecycleCallbacks: true,
         },
         ios: {

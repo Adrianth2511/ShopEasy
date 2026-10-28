@@ -16,6 +16,30 @@ import OrderSuccessScreen from '../screens/OrderSuccessScreen';
 import OrdersScreen from '../screens/OrdersScreen';
 import OrderDetailsScreen from '../screens/OrderDetailsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import { navigationRef } from './navigationRef';
+
+const linking = {
+  prefixes: ['shopeasy://', 'https://shopeasy.com'],
+  config: {
+    screens: {
+      Main: {
+        screens: {
+          Home: 'home',
+          Products: 'products',
+          Cart: 'cart',
+          Orders: 'orders',
+          Profile: 'profile',
+        },
+      },
+      ProductDetails: 'product/:productId',
+      OrderDetails: 'order/:orderId',
+      Checkout: 'checkout',
+      OrderSuccess: 'order-success',
+      Login: 'login',
+      Register: 'register',
+    },
+  },
+};
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -76,7 +100,7 @@ const AppNavigator = () => {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef} linking={linking}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {userToken == null ? (
           <>
