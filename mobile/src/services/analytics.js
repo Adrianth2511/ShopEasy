@@ -1,4 +1,15 @@
 import { navigate } from '../navigation/navigationRef';
+import {
+  initGeofence,
+  triggerLocation,
+  requestLocationPermissions,
+  checkLocationPermissions,
+  onGeofenceEntered,
+  onGeofenceExited,
+  onLocationUpdates,
+  onGeofenceInitialized,
+  isGeofenceInitialized,
+} from './geofence';
 
 let cleverTap;
 
@@ -55,7 +66,12 @@ export const initializeAnalytics = () => {
 
     // 2. Create notification channels for Android (required for Android O and above)
     createDefaultNotificationChannel();
-    createSoundNotificationChannel();
+    // Register primary sound channel and v2 fallback channel
+    createSoundNotificationChannel('shopeasy_sound_channel', 'ShopEasy Special Deals & Alerts', 'Flash sales, orders, and promotions with custom sound', 5, true, 'notification_sound.wav');
+    createSoundNotificationChannel('shopeasy_sound_channel_v2', 'ShopEasy VIP & Order Alerts', 'Instant notifications with custom sound alert', 5, true, 'notification_sound.wav');
+
+    // 2b. Initialize CleverTap Geofence SDK
+    initGeofence().catch((err) => console.log('[CleverTap] Geofence auto-init note:', err));
 
     // 3. Initialize App Inbox
     if (typeof sdk.initializeInbox === 'function') {
@@ -223,6 +239,18 @@ export const createSoundNotificationChannel = (
   } else if (sdk?.createNotificationChannel) {
     sdk.createNotificationChannel(channelId, channelName, channelDescription, importance, showBadge);
     console.log(`[CleverTap] Fallback notification channel "${channelId}" created (without sound method)`);
+  }
+};
+
+/**
+ * Deletes a notification channel by ID (Android 8.0+).
+ * Useful if you need to wipe an existing cached channel setting on the device.
+ */
+export const deleteNotificationChannel = (channelId) => {
+  const sdk = getCleverTap();
+  if (sdk?.deleteNotificationChannel) {
+    sdk.deleteNotificationChannel(channelId);
+    console.log(`[CleverTap] Notification channel "${channelId}" deleted`);
   }
 };
 
@@ -825,4 +853,17 @@ export const enableDeviceNetworkInfoReporting = (enable) => {
   if (sdk?.enableDeviceNetworkInfoReporting) {
     sdk.enableDeviceNetworkInfoReporting(Boolean(enable));
   }
+};
+
+// Re-export Geofence capabilities
+export {
+  initGeofence,
+  triggerLocation,
+  requestLocationPermissions,
+  checkLocationPermissions,
+  onGeofenceEntered,
+  onGeofenceExited,
+  onLocationUpdates,
+  onGeofenceInitialized,
+  isGeofenceInitialized,
 };

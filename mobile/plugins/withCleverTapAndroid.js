@@ -22,11 +22,16 @@ function modifyMainApplication(contents) {
     );
   }
 
-  // 3. Register CleverTapPackage in packageList
+  // 3. Register CleverTapPackage and CleverTapGeofencePackage in packageList
   if (!contents.includes('CleverTapPackage()')) {
     contents = contents.replace(
       'PackageList(this).packages.apply {',
-      'PackageList(this).packages.apply {\n          add(CleverTapPackage())'
+      'PackageList(this).packages.apply {\n          add(CleverTapPackage())\n          add(CleverTapGeofencePackage())'
+    );
+  } else if (!contents.includes('CleverTapGeofencePackage()')) {
+    contents = contents.replace(
+      'add(CleverTapPackage())',
+      'add(CleverTapPackage())\n          add(CleverTapGeofencePackage())'
     );
   }
 
@@ -81,11 +86,30 @@ function modifyAndroidManifest(androidManifest) {
     'android.permission.POST_NOTIFICATIONS'
   );
 
+  // 2. Add Geofence & Location permissions
+  const geofencePermissions = [
+    'android.permission.ACCESS_FINE_LOCATION',
+    'android.permission.ACCESS_COARSE_LOCATION',
+    'android.permission.ACCESS_BACKGROUND_LOCATION',
+    'android.permission.WAKE_LOCK',
+    'android.permission.RECEIVE_BOOT_COMPLETED',
+  ];
+  for (const perm of geofencePermissions) {
+    AndroidConfig.Permissions.addPermission(androidManifest, perm);
+  }
+
   const mainApplication =
     AndroidConfig.Manifest.getMainApplicationOrThrow(androidManifest);
   mainApplication.service = mainApplication.service || [];
 
-  // 2. Add FCM Message Listener Service
+  // 3. Add default notification channel meta-data for custom sound
+  AndroidConfig.Manifest.addMetaDataItemToMainApplication(
+    mainApplication,
+    'CLEVERTAP_DEFAULT_CHANNEL_ID',
+    'shopeasy_sound_channel'
+  );
+
+  // 4. Add FCM Message Listener Service
   const FCM_SERVICE =
     'com.clevertap.android.sdk.pushnotification.fcm.FcmMessageListenerService';
   const hasFcm = mainApplication.service.some(
@@ -111,7 +135,7 @@ function modifyAndroidManifest(androidManifest) {
     });
   }
 
-  // 3. Add CT Notification Intent Service
+  // 5. Add CT Notification Intent Service
   const CT_INTENT_SERVICE =
     'com.clevertap.android.sdk.pushnotification.CTNotificationIntentService';
   const hasCt = mainApplication.service.some(

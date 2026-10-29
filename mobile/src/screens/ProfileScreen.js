@@ -7,6 +7,11 @@ import {
   promptPushPrimer,
   getCleverTapID,
 } from '../services/analytics';
+import {
+  requestLocationPermissions,
+  triggerLocation,
+  checkLocationPermissions,
+} from '../services/geofence';
 
 export default function ProfileScreen({ navigation }) {
   const { userInfo, logout } = useContext(AuthContext);
@@ -33,10 +38,51 @@ export default function ProfileScreen({ navigation }) {
     ]);
   };
 
+  const handleGeofenceSettings = async () => {
+    const perms = await checkLocationPermissions();
+    if (!perms.isFullyGranted) {
+      Alert.alert(
+        'Location & Geofencing',
+        'Enable background location to receive exclusive store offers and order alerts when entering nearby areas.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Grant Permission',
+            onPress: async () => {
+              const granted = await requestLocationPermissions();
+              if (granted) {
+                await triggerLocation();
+                Alert.alert('Success', 'Location permission granted! Geofence tracking active.');
+              }
+            },
+          },
+        ]
+      );
+    } else {
+      Alert.alert(
+        'Geofencing Active',
+        'Location permissions are fully enabled. CleverTap Geofence SDK is actively monitoring your location and registered clusters.',
+        [
+          { text: 'Close', style: 'cancel' },
+          {
+            text: 'Trigger Location Update',
+            onPress: async () => {
+              const ok = await triggerLocation();
+              if (ok) {
+                Alert.alert('Location Triggered', 'Requested OS location update for CleverTap.');
+              }
+            },
+          },
+        ]
+      );
+    }
+  };
+
   const menuItems = [
     { icon: '📦', label: 'My Orders', onPress: () => navigation.navigate('Orders') },
     { icon: '🔔', label: 'App Inbox & Messages', onPress: () => showAppInbox() },
     { icon: '📲', label: 'Notification Permissions', onPress: () => promptPushPrimer() },
+    { icon: '🌐', label: 'Geofencing & Location Access', onPress: handleGeofenceSettings },
     { icon: '📍', label: 'Saved Addresses', onPress: () => {} },
     { icon: '💳', label: 'Payment Methods', onPress: () => {} },
     { icon: '❓', label: 'Help & Support', onPress: () => {} },
