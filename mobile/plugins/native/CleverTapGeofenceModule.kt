@@ -122,6 +122,12 @@ class CleverTapGeofenceModule(private val reactContext: ReactApplicationContext)
                 geofenceAPI.setCtLocationUpdatesListener(object : CTLocationUpdatesListener {
                     override fun onLocationUpdates(location: Location) {
                         Log.i(TAG, "Location update received: ${location.latitude}, ${location.longitude}")
+                        try {
+                            cleverTapAPI.setLocation(location)
+                            Log.i(TAG, "Synced location to CleverTap profile: ${location.latitude}, ${location.longitude}")
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to set location on CleverTap: ${e.message}")
+                        }
                         val map = Arguments.createMap().apply {
                             putDouble("latitude", location.latitude)
                             putDouble("longitude", location.longitude)
@@ -157,6 +163,23 @@ class CleverTapGeofenceModule(private val reactContext: ReactApplicationContext)
             try {
                 CTGeofenceAPI.getInstance(reactContext.applicationContext).triggerLocation()
                 Log.i(TAG, "CTGeofenceAPI triggerLocation requested successfully")
+
+                // Immediately fetch last location from FusedLocationProviderClient if available to update profile
+                try {
+                    val fusedClient = com.google.android.gms.location.LocationServices.getFusedLocationProviderClient(reactContext.applicationContext)
+                    fusedClient.lastLocation.addOnSuccessListener { loc: Location? ->
+                        if (loc != null) {
+                            val ctInstance = CleverTapAPI.getDefaultInstance(reactContext.applicationContext)
+                            ctInstance?.setLocation(loc)
+                            Log.i(TAG, "Fused location immediately synced to CleverTap: ${loc.latitude}, ${loc.longitude}")
+                        }
+                    }
+                } catch (e: SecurityException) {
+                    Log.w(TAG, "Location permission not yet granted for FusedLocationProviderClient")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Fused location lookup note: ${e.message}")
+                }
+
                 promise.resolve(true)
             } catch (e: IllegalStateException) {
                 Log.w(TAG, "triggerLocation called before geofence SDK initialization: ${e.message}")

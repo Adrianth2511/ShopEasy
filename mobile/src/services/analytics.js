@@ -73,6 +73,22 @@ export const initializeAnalytics = () => {
     // 2b. Initialize CleverTap Geofence SDK
     initGeofence().catch((err) => console.log('[CleverTap] Geofence auto-init note:', err));
 
+    // 2c. Auto-sync incoming location coordinates to CleverTap User Profile
+    onLocationUpdates((loc) => {
+      if (loc && typeof loc.latitude === 'number' && typeof loc.longitude === 'number') {
+        setUserLocation(loc.latitude, loc.longitude);
+        console.log('[CleverTap] Profile coordinates updated to:', loc.latitude, loc.longitude);
+      }
+    });
+
+    onGeofenceEntered((data) => {
+      console.log('[CleverTap] User entered geofence cluster:', data);
+    });
+
+    onGeofenceExited((data) => {
+      console.log('[CleverTap] User exited geofence cluster:', data);
+    });
+
     // 3. Initialize App Inbox
     if (typeof sdk.initializeInbox === 'function') {
       sdk.initializeInbox();
