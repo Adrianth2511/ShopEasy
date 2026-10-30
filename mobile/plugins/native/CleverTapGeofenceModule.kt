@@ -39,8 +39,9 @@ class CleverTapGeofenceModule(private val reactContext: ReactApplicationContext)
         }
     }
 
-    private fun jsonToReactMap(jsonObject: JSONObject): WritableMap {
+    private fun jsonToReactMap(jsonObject: JSONObject?): WritableMap {
         val map = Arguments.createMap()
+        if (jsonObject == null) return map
         val keys = jsonObject.keys()
         while (keys.hasNext()) {
             val key = keys.next()
@@ -105,13 +106,13 @@ class CleverTapGeofenceModule(private val reactContext: ReactApplicationContext)
 
                 // 2. Geofence Events Listener (Enter & Exit)
                 geofenceAPI.setCtGeofenceEventsListener(object : CTGeofenceEventsListener {
-                    override fun onGeofenceEnteredEvent(jsonObject: JSONObject) {
+                    override fun onGeofenceEnteredEvent(jsonObject: JSONObject?) {
                         Log.i(TAG, "Geofence entered event: $jsonObject")
                         val map = jsonToReactMap(jsonObject)
                         sendEvent("CleverTapGeofenceEntered", map)
                     }
 
-                    override fun onGeofenceExitedEvent(jsonObject: JSONObject) {
+                    override fun onGeofenceExitedEvent(jsonObject: JSONObject?) {
                         Log.i(TAG, "Geofence exited event: $jsonObject")
                         val map = jsonToReactMap(jsonObject)
                         sendEvent("CleverTapGeofenceExited", map)
@@ -120,7 +121,11 @@ class CleverTapGeofenceModule(private val reactContext: ReactApplicationContext)
 
                 // 3. Location Updates Listener
                 geofenceAPI.setCtLocationUpdatesListener(object : CTLocationUpdatesListener {
-                    override fun onLocationUpdates(location: Location) {
+                    override fun onLocationUpdates(location: Location?) {
+                        if (location == null) {
+                            Log.i(TAG, "Location update received is null (OS has no cached location fix yet)")
+                            return
+                        }
                         Log.i(TAG, "Location update received: ${location.latitude}, ${location.longitude}")
                         try {
                             cleverTapAPI.setLocation(location)
