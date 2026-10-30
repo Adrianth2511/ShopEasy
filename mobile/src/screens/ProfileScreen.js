@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthContext } from '../context/AuthContext';
 import {
@@ -11,11 +11,15 @@ import {
   requestLocationPermissions,
   triggerLocation,
   checkLocationPermissions,
+  setManualLocation,
+  onLocationUpdates,
 } from '../services/geofence';
 
 export default function ProfileScreen({ navigation }) {
   const { userInfo, logout } = useContext(AuthContext);
   const [cleverTapId, setCleverTapId] = useState(null);
+  const [locationInfo, setLocationInfo] = useState(null);
+  const [syncingLocation, setSyncingLocation] = useState(false);
 
   useEffect(() => {
     getCleverTapID((err, id) => {
@@ -23,6 +27,19 @@ export default function ProfileScreen({ navigation }) {
         setCleverTapId(id);
       }
     });
+
+    const unsubscribe = onLocationUpdates((loc) => {
+      if (loc && typeof loc.latitude === 'number' && typeof loc.longitude === 'number') {
+        setLocationInfo({
+          latitude: loc.latitude,
+          longitude: loc.longitude,
+          city: loc.city || '',
+          country: loc.country || '',
+        });
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const handleLogout = () => {
@@ -38,6 +55,74 @@ export default function ProfileScreen({ navigation }) {
     ]);
   };
 
+  const handleSyncLiveGPS = async () => {
+    setSyncingLocation(true);
+    try {
+      const result = await triggerLocation();
+      setSyncingLocation(false);
+      if (result?.success && typeof result.latitude === 'number') {
+        setLocationInfo({
+          latitude: result.latitude,
+          longitude: result.longitude,
+          city: result.city || '',
+          country: result.country || '',
+        });
+        Alert.alert(
+          'Location Synced to CleverTap! 🎯',
+          `📍 City: ${result.city || 'Detected'}\n🌍 Country: ${result.country || 'Detected'}\n📐 Latitude: ${result.latitude.toFixed(4)}\n📐 Longitude: ${result.longitude.toFixed(4)}\n\nYour user profile on the CleverTap dashboard is now updated!`
+        );
+      } else {
+        Alert.alert(
+          'GPS Fix Pending',
+          result?.message || 'Device location fix is still pending. Make sure GPS / Location is turned on in Android settings, or use "Set Test Location" below.'
+        );
+      }
+    } catch (err) {
+      setSyncingLocation(false);
+      Alert.alert('Error', err?.message || 'Failed to sync location');
+    }
+  };
+
+  const handleSetTestLocation = () => {
+    Alert.alert(
+      'Choose Test Store Location',
+      'Select a location to immediately push to CleverTap profile & test geofencing:',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: '🇬🇧 London (51.5074, -0.1278)',
+          onPress: async () => {
+            const res = await setManualLocation(51.5074, -0.1278);
+            if (res?.success) {
+              setLocationInfo({ latitude: 51.5074, longitude: -0.1278, city: res.city || 'London', country: res.country || 'United Kingdom' });
+              Alert.alert('Location Updated', 'Set to London, UK! Synced to CleverTap profile.');
+            }
+          },
+        },
+        {
+          text: '🇮🇳 Mumbai (19.0760, 72.8777)',
+          onPress: async () => {
+            const res = await setManualLocation(19.0760, 72.8777);
+            if (res?.success) {
+              setLocationInfo({ latitude: 19.0760, longitude: 72.8777, city: res.city || 'Mumbai', country: res.country || 'India' });
+              Alert.alert('Location Updated', 'Set to Mumbai, India! Synced to CleverTap profile.');
+            }
+          },
+        },
+        {
+          text: '🇺🇸 New York (40.7128, -74.0060)',
+          onPress: async () => {
+            const res = await setManualLocation(40.7128, -74.0060);
+            if (res?.success) {
+              setLocationInfo({ latitude: 40.7128, longitude: -74.0060, city: res.city || 'New York', country: res.country || 'United States' });
+              Alert.alert('Location Updated', 'Set to New York, USA! Synced to CleverTap profile.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleGeofenceSettings = async () => {
     const perms = await checkLocationPermissions();
     if (!perms.isFullyGranted) {
@@ -51,8 +136,7 @@ export default function ProfileScreen({ navigation }) {
             onPress: async () => {
               const granted = await requestLocationPermissions();
               if (granted) {
-                await triggerLocation();
-                Alert.alert('Success', 'Location permission granted! Geofence tracking active.');
+                await handleSyncLiveGPS();
               }
             },
           },
@@ -60,18 +144,17 @@ export default function ProfileScreen({ navigation }) {
       );
     } else {
       Alert.alert(
-        'Geofencing Active',
-        'Location permissions are fully enabled. CleverTap Geofence SDK is actively monitoring your location and registered clusters.',
+        'Geofencing & Location Active',
+        'Location permissions are fully enabled. How would you like to update your location for CleverTap?',
         [
           { text: 'Close', style: 'cancel' },
           {
-            text: 'Trigger Location Update',
-            onPress: async () => {
-              const ok = await triggerLocation();
-              if (ok) {
-                Alert.alert('Location Triggered', 'Requested OS location update for CleverTap.');
-              }
-            },
+            text: '🎯 Sync Live GPS Location',
+            onPress: handleSyncLiveGPS,
+          },
+          {
+            text: '📍 Set Test Store Location',
+            onPress: handleSetTestLocation,
           },
         ]
       );
@@ -139,17 +222,45 @@ export default function ProfileScreen({ navigation }) {
           ))}
         </View>
 
-        {/* Logout */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
-          <Text style={styles.logoutText}>🚪  Logout</Text>
+        {/* Quick Sync Button */}
+        <TouchableOpacity
+          style={styles.syncLocationBtn}
+          onPress={handleSyncLiveGPS}
+          disabled={syncingLocation}
+          activeOpacity={0.8}
+        >
+          {syncingLocation ? (
+            <ActivityIndicator size="small" color="#4338ca" />
+          ) : (
+            <Text style={styles.syncLocationText}>🎯  Sync Current GPS to CleverTap</Text>
+          )}
         </TouchableOpacity>
 
+        {/* Location Info Badge */}
+        {locationInfo ? (
+          <View style={styles.locationContainer}>
+            <Text style={styles.locationLabel}>CleverTap Synced Location</Text>
+            <Text style={styles.locationValue}>
+              📍 {locationInfo.city ? `${locationInfo.city}, ` : ''}{locationInfo.country || 'Detected'}
+            </Text>
+            <Text style={styles.locationCoords}>
+              Lat: {locationInfo.latitude?.toFixed(4)}, Long: {locationInfo.longitude?.toFixed(4)}
+            </Text>
+          </View>
+        ) : null}
+
+        {/* CleverTap ID Container */}
         {cleverTapId ? (
           <View style={styles.ctIdContainer}>
             <Text style={styles.ctIdLabel}>CleverTap ID</Text>
             <Text style={styles.ctIdValue} selectable>{cleverTapId}</Text>
           </View>
         ) : null}
+
+        {/* Logout */}
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
+          <Text style={styles.logoutText}>🚪  Logout</Text>
+        </TouchableOpacity>
 
         <Text style={styles.version}>ShopEasy v1.0.0</Text>
       </ScrollView>
@@ -176,10 +287,16 @@ const styles = StyleSheet.create({
   menuIcon: { fontSize: 20, marginRight: 14 },
   menuLabel: { flex: 1, fontSize: 15, fontWeight: '500', color: '#1a1a2e' },
   menuArrow: { fontSize: 20, color: '#ccc' },
-  logoutBtn: { margin: 16, marginTop: 20, backgroundColor: '#fff', borderRadius: 14, paddingVertical: 16, alignItems: 'center', borderWidth: 1.5, borderColor: '#ef4444' },
-  logoutText: { color: '#ef4444', fontSize: 16, fontWeight: '700' },
-  ctIdContainer: { marginHorizontal: 20, marginBottom: 14, padding: 12, backgroundColor: '#eef2ff', borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: '#c7d2fe' },
+  syncLocationBtn: { marginHorizontal: 16, marginTop: 16, backgroundColor: '#e0e7ff', borderRadius: 14, paddingVertical: 14, alignItems: 'center', borderWidth: 1.5, borderColor: '#6366f1' },
+  syncLocationText: { color: '#4338ca', fontSize: 15, fontWeight: '700' },
+  locationContainer: { marginHorizontal: 16, marginTop: 14, padding: 14, backgroundColor: '#ecfdf5', borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#a7f3d0' },
+  locationLabel: { fontSize: 11, fontWeight: '700', color: '#047857', textTransform: 'uppercase', marginBottom: 4 },
+  locationValue: { fontSize: 15, fontWeight: '700', color: '#065f46', marginBottom: 2 },
+  locationCoords: { fontSize: 12, color: '#047857', fontFamily: 'monospace' },
+  ctIdContainer: { marginHorizontal: 16, marginTop: 14, padding: 12, backgroundColor: '#eef2ff', borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: '#c7d2fe' },
   ctIdLabel: { fontSize: 11, fontWeight: '700', color: '#4338ca', textTransform: 'uppercase', marginBottom: 2 },
   ctIdValue: { fontSize: 11, color: '#312e81', fontFamily: 'monospace' },
+  logoutBtn: { margin: 16, marginTop: 16, backgroundColor: '#fff', borderRadius: 14, paddingVertical: 16, alignItems: 'center', borderWidth: 1.5, borderColor: '#ef4444' },
+  logoutText: { color: '#ef4444', fontSize: 16, fontWeight: '700' },
   version: { textAlign: 'center', color: '#bbb', fontSize: 12, marginBottom: 20 },
 });

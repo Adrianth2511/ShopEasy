@@ -2,6 +2,7 @@ import { navigate } from '../navigation/navigationRef';
 import {
   initGeofence,
   triggerLocation,
+  setManualLocation,
   requestLocationPermissions,
   checkLocationPermissions,
   onGeofenceEntered,
@@ -10,6 +11,19 @@ import {
   onGeofenceInitialized,
   isGeofenceInitialized,
 } from './geofence';
+
+export {
+  initGeofence,
+  triggerLocation,
+  setManualLocation,
+  requestLocationPermissions,
+  checkLocationPermissions,
+  onGeofenceEntered,
+  onGeofenceExited,
+  onLocationUpdates,
+  onGeofenceInitialized,
+  isGeofenceInitialized,
+};
 
 let cleverTap;
 
@@ -77,7 +91,24 @@ export const initializeAnalytics = () => {
     onLocationUpdates((loc) => {
       if (loc && typeof loc.latitude === 'number' && typeof loc.longitude === 'number') {
         setUserLocation(loc.latitude, loc.longitude);
-        console.log('[CleverTap] Profile coordinates updated to:', loc.latitude, loc.longitude);
+        if (loc.city || loc.country || loc.state) {
+          const profileData = {
+            ...(loc.city ? { City: loc.city } : {}),
+            ...(loc.country ? { Country: loc.country } : {}),
+            ...(loc.state ? { State: loc.state } : {}),
+            Latitude: loc.latitude,
+            Longitude: loc.longitude,
+          };
+          setUserProfile(profileData);
+        }
+        trackEvent('Location Synced', {
+          latitude: loc.latitude,
+          longitude: loc.longitude,
+          city: loc.city || '',
+          country: loc.country || '',
+          source: loc.source || 'device',
+        });
+        console.log('[CleverTap] Profile coordinates & location synced:', loc);
       }
     });
 
@@ -719,12 +750,18 @@ export const setUserProfile = (props) => {
 };
 
 /**
- * Updates user geographic location.
+ * Updates user geographic location and immediately flushes Latitude/Longitude to profile.
  */
 export const setUserLocation = (latitude, longitude) => {
   const sdk = getCleverTap();
   if (sdk?.setLocation && typeof latitude === 'number' && typeof longitude === 'number') {
     sdk.setLocation(latitude, longitude);
+    if (sdk.profileSet) {
+      sdk.profileSet({
+        Latitude: latitude,
+        Longitude: longitude,
+      });
+    }
   }
 };
 

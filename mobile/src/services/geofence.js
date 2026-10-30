@@ -146,28 +146,56 @@ export const initGeofence = async (customSettings = {}) => {
 };
 
 /**
- * Triggers an immediate location fetch from the OS (can be null if OS has no last known fix).
- * Delivers result via the onLocationUpdates listener.
+ * Triggers an immediate, high-accuracy location fetch from the OS, reverse-geocodes it,
+ * syncs to CleverTap profile & triggers event flush, and notifies listeners.
  *
- * @returns {Promise<boolean>}
+ * @returns {Promise<{ success: boolean, latitude?: number, longitude?: number, city?: string, country?: string, message?: string }>}
  */
 export const triggerLocation = async () => {
   if (Platform.OS !== 'android') {
-    return false;
+    return { success: false, message: 'Platform is not Android' };
   }
 
   if (!CleverTapGeofence?.triggerLocation) {
     console.warn('[CleverTap Geofence] Native module triggerLocation is not available');
-    return false;
+    return { success: false, message: 'CleverTapGeofence module not found' };
   }
 
   try {
-    await CleverTapGeofence.triggerLocation();
-    console.log('[CleverTap Geofence] triggerLocation executed successfully');
-    return true;
+    const result = await CleverTapGeofence.triggerLocation();
+    console.log('[CleverTap Geofence] triggerLocation result:', result);
+    return result || { success: true };
   } catch (error) {
     console.warn('[CleverTap Geofence] triggerLocation failed:', error?.message || error);
-    return false;
+    return { success: false, message: error?.message || String(error) };
+  }
+};
+
+/**
+ * Manually sets coordinates, reverse-geocodes, and updates the CleverTap profile.
+ * Useful for simulating store proximity or testing without waiting for physical GPS lock.
+ *
+ * @param {number} latitude
+ * @param {number} longitude
+ * @returns {Promise<{ success: boolean, latitude: number, longitude: number, city?: string, country?: string }>}
+ */
+export const setManualLocation = async (latitude, longitude) => {
+  if (Platform.OS !== 'android') {
+    return { success: false, message: 'Platform is not Android' };
+  }
+
+  if (!CleverTapGeofence?.setLocation) {
+    console.warn('[CleverTap Geofence] Native module setLocation is not available');
+    return { success: false, message: 'CleverTapGeofence module not found' };
+  }
+
+  try {
+    const result = await CleverTapGeofence.setLocation(latitude, longitude);
+    console.log('[CleverTap Geofence] setManualLocation result:', result);
+    return result || { success: true, latitude, longitude };
+  } catch (error) {
+    console.error('[CleverTap Geofence] setManualLocation failed:', error);
+    return { success: false, message: error?.message || String(error) };
   }
 };
 
