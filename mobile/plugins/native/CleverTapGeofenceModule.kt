@@ -90,11 +90,12 @@ class CleverTapGeofenceModule(private val reactContext: ReactApplicationContext)
      * 3. Pushes profile properties ("City", "State", "Country", "Latitude", "Longitude")
      * 4. Pushes "Location Updated" event so CleverTap immediately flushes the location payload to server
      * 5. Emits "CleverTapLocationUpdates" event to React Native JS
+     * 6. Calls callback with primitive Strings (city, state, country) so React Native maps are NEVER consumed twice
      */
     private fun syncLocationToCleverTap(
         location: Location,
         source: String,
-        callback: ((WritableMap) -> Unit)? = null
+        callback: ((city: String, state: String, country: String) -> Unit)? = null
     ) {
         val ctInstance = CleverTapAPI.getDefaultInstance(reactContext.applicationContext)
         if (ctInstance == null) {
@@ -156,21 +157,30 @@ class CleverTapGeofenceModule(private val reactContext: ReactApplicationContext)
 
             // 3. Emit event to React Native JS on main thread
             mainHandler.post {
-                val map = Arguments.createMap().apply {
-                    putDouble("latitude", location.latitude)
-                    putDouble("longitude", location.longitude)
-                    putDouble("accuracy", location.accuracy.toDouble())
-                    putDouble("altitude", location.altitude)
-                    putDouble("speed", location.speed.toDouble())
-                    putDouble("bearing", location.bearing.toDouble())
-                    putDouble("time", location.time.toDouble())
-                    putString("city", city)
-                    putString("state", state)
-                    putString("country", country)
-                    putString("source", source)
+                try {
+                    val eventMap = Arguments.createMap().apply {
+                        putDouble("latitude", location.latitude)
+                        putDouble("longitude", location.longitude)
+                        putDouble("accuracy", location.accuracy.toDouble())
+                        putDouble("altitude", location.altitude)
+                        putDouble("speed", location.speed.toDouble())
+                        putDouble("bearing", location.bearing.toDouble())
+                        putDouble("time", location.time.toDouble())
+                        putString("city", city)
+                        putString("state", state)
+                        putString("country", country)
+                        putString("source", source)
+                    }
+                    sendEvent("CleverTapLocationUpdates", eventMap)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error emitting CleverTapLocationUpdates: ${e.message}")
                 }
-                sendEvent("CleverTapLocationUpdates", map)
-                callback?.invoke(map)
+
+                try {
+                    callback?.invoke(city, state, country)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error invoking location callback: ${e.message}")
+                }
             }
         }
     }
@@ -308,13 +318,13 @@ class CleverTapGeofenceModule(private val reactContext: ReactApplicationContext)
                     ).addOnSuccessListener { freshLoc: Location? ->
                         if (freshLoc != null) {
                             Log.i(TAG, "Fresh high-accuracy location acquired: ${freshLoc.latitude}, ${freshLoc.longitude}")
-                            syncLocationToCleverTap(freshLoc, "FusedCurrentLocation") { resultMap ->
+                            syncLocationToCleverTap(freshLoc, "FusedCurrentLocation") { resCity, _, resCountry ->
                                 val res = Arguments.createMap().apply {
                                     putBoolean("success", true)
                                     putDouble("latitude", freshLoc.latitude)
                                     putDouble("longitude", freshLoc.longitude)
-                                    putString("city", resultMap.getString("city") ?: "")
-                                    putString("country", resultMap.getString("country") ?: "")
+                                    putString("city", resCity)
+                                    putString("country", resCountry)
                                 }
                                 try { promise.resolve(res) } catch (_: Exception) {}
                             }
@@ -327,13 +337,13 @@ class CleverTapGeofenceModule(private val reactContext: ReactApplicationContext)
 
                             if (fallback != null) {
                                 Log.i(TAG, "Fallback location acquired: ${fallback.latitude}, ${fallback.longitude}")
-                                syncLocationToCleverTap(fallback, "LocationManagerFallback") { resultMap ->
+                                syncLocationToCleverTap(fallback, "LocationManagerFallback") { resCity, _, resCountry ->
                                     val res = Arguments.createMap().apply {
                                         putBoolean("success", true)
                                         putDouble("latitude", fallback.latitude)
                                         putDouble("longitude", fallback.longitude)
-                                        putString("city", resultMap.getString("city") ?: "")
-                                        putString("country", resultMap.getString("country") ?: "")
+                                        putString("city", resCity)
+                                        putString("country", resCountry)
                                     }
                                     try { promise.resolve(res) } catch (_: Exception) {}
                                 }
@@ -377,15 +387,15 @@ class CleverTapGeofenceModule(private val reactContext: ReactApplicationContext)
                     this.longitude = longitude
                     time = System.currentTimeMillis()
                 }
-                syncLocationToCleverTap(loc, "ManualCustom") { resultMap ->
+                syncLocationToCleverTap(loc, "ManualCustom") { resCity, _, resCountry ->
                     val res = Arguments.createMap().apply {
                         putBoolean("success", true)
                         putDouble("latitude", latitude)
                         putDouble("longitude", longitude)
-                        putString("city", resultMap.getString("city") ?: "")
-                        putString("country", resultMap.getString("country") ?: "")
+                        putString("city", resCity)
+                        putString("country", resCountry)
                     }
-                    promise.resolve(res)
+                    try { promise.resolve(res) } catch (_: Exception) {}
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "setLocation error: ${e.message}", e)
