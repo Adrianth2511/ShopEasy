@@ -101,10 +101,12 @@ export const initializeAnalytics = () => {
 
     onGeofenceEntered((data) => {
       console.log('[CleverTap] User entered geofence cluster:', data);
+      trackEvent('Geofence Entered', data || {});
     });
 
     onGeofenceExited((data) => {
       console.log('[CleverTap] User exited geofence cluster:', data);
+      trackEvent('Geofence Exited', data || {});
     });
 
     // 3. Initialize App Inbox
