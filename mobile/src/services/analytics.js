@@ -12,19 +12,6 @@ import {
   isGeofenceInitialized,
 } from './geofence';
 
-export {
-  initGeofence,
-  triggerLocation,
-  setManualLocation,
-  requestLocationPermissions,
-  checkLocationPermissions,
-  onGeofenceEntered,
-  onGeofenceExited,
-  onLocationUpdates,
-  onGeofenceInitialized,
-  isGeofenceInitialized,
-};
-
 let cleverTap;
 
 /**
@@ -912,6 +899,7 @@ export const enableDeviceNetworkInfoReporting = (enable) => {
 export {
   initGeofence,
   triggerLocation,
+  setManualLocation,
   requestLocationPermissions,
   checkLocationPermissions,
   onGeofenceEntered,
