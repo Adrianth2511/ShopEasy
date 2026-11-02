@@ -132,7 +132,7 @@ class CleverTapGeofenceModule(private val reactContext: ReactApplicationContext)
             }
 
             try {
-                // 1. Push Profile update with City, State, Country, Latitude, Longitude
+                // 1. Push Profile update with real-time City, State, Country, Latitude, Longitude
                 val profileMap = HashMap<String, Any>()
                 if (city.isNotEmpty()) profileMap["City"] = city
                 if (state.isNotEmpty()) profileMap["State"] = state
@@ -141,18 +141,9 @@ class CleverTapGeofenceModule(private val reactContext: ReactApplicationContext)
                 profileMap["Longitude"] = location.longitude
                 ctInstance.pushProfile(profileMap)
 
-                // 2. Push event to force immediate queue flush to CleverTap servers
-                val eventMap = HashMap<String, Any>()
-                eventMap["Latitude"] = location.latitude
-                eventMap["Longitude"] = location.longitude
-                if (city.isNotEmpty()) eventMap["City"] = city
-                if (country.isNotEmpty()) eventMap["Country"] = country
-                eventMap["Source"] = source
-                ctInstance.pushEvent("Location Updated", eventMap)
-
-                Log.i(TAG, "Successfully pushed profile & event to CleverTap: City=$city, Country=$country, Lat=${location.latitude}, Lng=${location.longitude}")
+                Log.i(TAG, "Successfully updated CleverTap profile with real-time location: City=$city, Country=$country, Lat=${location.latitude}, Lng=${location.longitude}")
             } catch (e: Exception) {
-                Log.e(TAG, "Error pushing profile/event to CleverTap: ${e.message}")
+                Log.e(TAG, "Error updating CleverTap profile: ${e.message}")
             }
 
             // 3. Emit event to React Native JS on main thread
@@ -199,10 +190,10 @@ class CleverTapGeofenceModule(private val reactContext: ReactApplicationContext)
                 val logLevel = if (options?.hasKey("logLevel") == true) options.getInt("logLevel") else CleverTapAPI.LogLevel.VERBOSE.intValue()
                 val accuracy = if (options?.hasKey("accuracy") == true) options.getInt("accuracy").toByte() else CTGeofenceSettings.ACCURACY_HIGH
                 val fetchMode = if (options?.hasKey("fetchMode") == true) options.getInt("fetchMode").toByte() else CTGeofenceSettings.FETCH_LAST_LOCATION_PERIODIC
-                val geofenceCount = if (options?.hasKey("geofenceCount") == true) options.getInt("geofenceCount") else 50
-                val interval = if (options?.hasKey("interval") == true) options.getDouble("interval").toLong() else 1800000L
-                val fastestInterval = if (options?.hasKey("fastestInterval") == true) options.getDouble("fastestInterval").toLong() else 1800000L
-                val displacement = if (options?.hasKey("smallestDisplacement") == true) options.getDouble("smallestDisplacement").toFloat() else 200f
+                val geofenceCount = if (options?.hasKey("geofenceCount") == true) options.getInt("geofenceCount") else 100
+                val interval = if (options?.hasKey("interval") == true) options.getDouble("interval").toLong() else 300000L // 5 mins
+                val fastestInterval = if (options?.hasKey("fastestInterval") == true) options.getDouble("fastestInterval").toLong() else 60000L // 1 min
+                val displacement = if (options?.hasKey("smallestDisplacement") == true) options.getDouble("smallestDisplacement").toFloat() else 50f // 50m
                 val responsiveness = if (options?.hasKey("geofenceNotificationResponsiveness") == true) options.getInt("geofenceNotificationResponsiveness") else 0
 
                 val settings = CTGeofenceSettings.Builder()
@@ -233,15 +224,51 @@ class CleverTapGeofenceModule(private val reactContext: ReactApplicationContext)
                 // 2. Geofence Events Listener (Enter & Exit)
                 geofenceAPI.setCtGeofenceEventsListener(object : CTGeofenceEventsListener {
                     override fun onGeofenceEnteredEvent(jsonObject: JSONObject?) {
-                        Log.i(TAG, "Geofence entered event: $jsonObject")
+                        Log.i(TAG, "Geofence cluster entered: $jsonObject")
                         val map = jsonToReactMap(jsonObject)
                         sendEvent("CleverTapGeofenceEntered", map)
+
+                        try {
+                            val eventProps = HashMap<String, Any>()
+                            if (jsonObject != null) {
+                                val keys = jsonObject.keys()
+                                while (keys.hasNext()) {
+                                    val key = keys.next()
+                                    val value = jsonObject.opt(key)
+                                    if (value != null && value != JSONObject.NULL) {
+                                        eventProps[key] = value
+                                    }
+                                }
+                            }
+                            cleverTapAPI.pushEvent("Geofence Entered", eventProps)
+                            Log.i(TAG, "Recorded Geofence Entered event to CleverTap: $eventProps")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error pushing Geofence Entered event: ${e.message}")
+                        }
                     }
 
                     override fun onGeofenceExitedEvent(jsonObject: JSONObject?) {
-                        Log.i(TAG, "Geofence exited event: $jsonObject")
+                        Log.i(TAG, "Geofence cluster exited: $jsonObject")
                         val map = jsonToReactMap(jsonObject)
                         sendEvent("CleverTapGeofenceExited", map)
+
+                        try {
+                            val eventProps = HashMap<String, Any>()
+                            if (jsonObject != null) {
+                                val keys = jsonObject.keys()
+                                while (keys.hasNext()) {
+                                    val key = keys.next()
+                                    val value = jsonObject.opt(key)
+                                    if (value != null && value != JSONObject.NULL) {
+                                        eventProps[key] = value
+                                    }
+                                }
+                            }
+                            cleverTapAPI.pushEvent("Geofence Exited", eventProps)
+                            Log.i(TAG, "Recorded Geofence Exited event to CleverTap: $eventProps")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error pushing Geofence Exited event: ${e.message}")
+                        }
                     }
                 })
 

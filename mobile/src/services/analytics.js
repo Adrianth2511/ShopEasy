@@ -2,7 +2,6 @@ import { navigate } from '../navigation/navigationRef';
 import {
   initGeofence,
   triggerLocation,
-  setManualLocation,
   requestLocationPermissions,
   checkLocationPermissions,
   onGeofenceEntered,
@@ -88,14 +87,7 @@ export const initializeAnalytics = () => {
           };
           setUserProfile(profileData);
         }
-        trackEvent('Location Synced', {
-          latitude: loc.latitude,
-          longitude: loc.longitude,
-          city: loc.city || '',
-          country: loc.country || '',
-          source: loc.source || 'device',
-        });
-        console.log('[CleverTap] Profile coordinates & location synced:', loc);
+        console.log('[CleverTap] Real-time profile coordinates updated:', loc);
       }
     });
 
@@ -901,7 +893,6 @@ export const enableDeviceNetworkInfoReporting = (enable) => {
 export {
   initGeofence,
   triggerLocation,
-  setManualLocation,
   requestLocationPermissions,
   checkLocationPermissions,
   onGeofenceEntered,

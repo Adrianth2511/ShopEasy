@@ -127,10 +127,10 @@ export const initGeofence = async (customSettings = {}) => {
     logLevel: 3, // Verbose
     accuracy: 1, // High Accuracy
     fetchMode: 1, // Periodic
-    geofenceCount: 50,
-    interval: 1800000, // 30 minutes
-    fastestInterval: 1800000,
-    smallestDisplacement: 200, // 200 meters
+    geofenceCount: 100,
+    interval: 300000, // 5 minutes
+    fastestInterval: 60000, // 1 minute
+    smallestDisplacement: 50, // 50 meters
     geofenceNotificationResponsiveness: 0,
     ...customSettings,
   };
@@ -146,8 +146,8 @@ export const initGeofence = async (customSettings = {}) => {
 };
 
 /**
- * Triggers an immediate, high-accuracy location fetch from the OS, reverse-geocodes it,
- * syncs to CleverTap profile & triggers event flush, and notifies listeners.
+ * Triggers an immediate, real-time high-accuracy location fetch from the OS,
+ * reverse-geocodes it, syncs to CleverTap user profile, and notifies listeners.
  *
  * @returns {Promise<{ success: boolean, latitude?: number, longitude?: number, city?: string, country?: string, message?: string }>}
  */
@@ -167,34 +167,6 @@ export const triggerLocation = async () => {
     return result || { success: true };
   } catch (error) {
     console.warn('[CleverTap Geofence] triggerLocation failed:', error?.message || error);
-    return { success: false, message: error?.message || String(error) };
-  }
-};
-
-/**
- * Manually sets coordinates, reverse-geocodes, and updates the CleverTap profile.
- * Useful for simulating store proximity or testing without waiting for physical GPS lock.
- *
- * @param {number} latitude
- * @param {number} longitude
- * @returns {Promise<{ success: boolean, latitude: number, longitude: number, city?: string, country?: string }>}
- */
-export const setManualLocation = async (latitude, longitude) => {
-  if (Platform.OS !== 'android') {
-    return { success: false, message: 'Platform is not Android' };
-  }
-
-  if (!CleverTapGeofence?.setLocation) {
-    console.warn('[CleverTap Geofence] Native module setLocation is not available');
-    return { success: false, message: 'CleverTapGeofence module not found' };
-  }
-
-  try {
-    const result = await CleverTapGeofence.setLocation(latitude, longitude);
-    console.log('[CleverTap Geofence] setManualLocation result:', result);
-    return result || { success: true, latitude, longitude };
-  } catch (error) {
-    console.error('[CleverTap Geofence] setManualLocation failed:', error);
     return { success: false, message: error?.message || String(error) };
   }
 };

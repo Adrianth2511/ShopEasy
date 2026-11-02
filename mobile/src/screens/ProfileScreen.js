@@ -11,7 +11,6 @@ import {
   requestLocationPermissions,
   triggerLocation,
   checkLocationPermissions,
-  setManualLocation,
   onLocationUpdates,
 } from '../services/geofence';
 
@@ -68,13 +67,13 @@ export default function ProfileScreen({ navigation }) {
           country: result.country || '',
         });
         Alert.alert(
-          'Location Synced to CleverTap! 🎯',
-          `📍 City: ${result.city || 'Detected'}\n🌍 Country: ${result.country || 'Detected'}\n📐 Latitude: ${result.latitude.toFixed(4)}\n📐 Longitude: ${result.longitude.toFixed(4)}\n\nYour user profile on the CleverTap dashboard is now updated!`
+          'Live Location Detected',
+          `📍 City: ${result.city || 'Detected'}\n🌍 Country: ${result.country || 'Detected'}\n📐 Latitude: ${result.latitude.toFixed(4)}\n📐 Longitude: ${result.longitude.toFixed(4)}\n\nProfile updated on CleverTap.`
         );
       } else {
         Alert.alert(
           'GPS Fix Pending',
-          result?.message || 'Device location fix is still pending. Make sure GPS / Location is turned on in Android settings, or use "Set Test Location" below.'
+          result?.message || 'Device location fix is still pending. Make sure GPS / Location is enabled in Android device settings.'
         );
       }
     } catch (err) {
@@ -83,52 +82,12 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
-  const handleSetTestLocation = () => {
-    Alert.alert(
-      'Choose Test Store Location',
-      'Select a location to immediately push to CleverTap profile & test geofencing:',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: '🇬🇧 London (51.5074, -0.1278)',
-          onPress: async () => {
-            const res = await setManualLocation(51.5074, -0.1278);
-            if (res?.success) {
-              setLocationInfo({ latitude: 51.5074, longitude: -0.1278, city: res.city || 'London', country: res.country || 'United Kingdom' });
-              Alert.alert('Location Updated', 'Set to London, UK! Synced to CleverTap profile.');
-            }
-          },
-        },
-        {
-          text: '🇮🇳 Mumbai (19.0760, 72.8777)',
-          onPress: async () => {
-            const res = await setManualLocation(19.0760, 72.8777);
-            if (res?.success) {
-              setLocationInfo({ latitude: 19.0760, longitude: 72.8777, city: res.city || 'Mumbai', country: res.country || 'India' });
-              Alert.alert('Location Updated', 'Set to Mumbai, India! Synced to CleverTap profile.');
-            }
-          },
-        },
-        {
-          text: '🇺🇸 New York (40.7128, -74.0060)',
-          onPress: async () => {
-            const res = await setManualLocation(40.7128, -74.0060);
-            if (res?.success) {
-              setLocationInfo({ latitude: 40.7128, longitude: -74.0060, city: res.city || 'New York', country: res.country || 'United States' });
-              Alert.alert('Location Updated', 'Set to New York, USA! Synced to CleverTap profile.');
-            }
-          },
-        },
-      ]
-    );
-  };
-
   const handleGeofenceSettings = async () => {
     const perms = await checkLocationPermissions();
     if (!perms.isFullyGranted) {
       Alert.alert(
         'Location & Geofencing',
-        'Enable background location to receive exclusive store offers and order alerts when entering nearby areas.',
+        'Enable background location to receive exclusive store offers and order alerts when entering nearby store areas.',
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -145,16 +104,12 @@ export default function ProfileScreen({ navigation }) {
     } else {
       Alert.alert(
         'Geofencing & Location Active',
-        'Location permissions are fully enabled. How would you like to update your location for CleverTap?',
+        'Real-time GPS tracking and geofence monitoring are active. When you enter a registered store geofence cluster, it will be automatically recorded.',
         [
           { text: 'Close', style: 'cancel' },
           {
-            text: '🎯 Sync Live GPS Location',
+            text: '🎯 Refresh Live GPS Location',
             onPress: handleSyncLiveGPS,
-          },
-          {
-            text: '📍 Set Test Store Location',
-            onPress: handleSetTestLocation,
           },
         ]
       );
